@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "DIT AC Control",
+    "slug": "dit-ac-control",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "ditac",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "tz.ac.dit.accontrol",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
+    },
+    "android": {
+      "package": "tz.ac.dit.accontrol",
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#0f766e"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-status-bar",
+      "./plugins/withCleartextTraffic.js"
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "dit-ac-control-mobile"
+      }
+    }
+  }
+}

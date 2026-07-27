@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  FACILITIES_MANAGER
+  TECHNICIAN
+  VIEWER
+}
+
+enum AcPowerState {
+  ON
+  OFF
+  UNKNOWN
+}
+
+enum AcMode {
+  COOL
+  HEAT
+  DRY
+  FAN
+  AUTO
+}
+
+enum CommandType {
+  POWER
+  SETPOINT
+  MODE
+  FAN_SPEED
+  SWING
+  FULL_STATE
+}
+
+enum CommandStatus {
+  PENDING
+  SENT
+  ACKED
+  FAILED
+  EXPIRED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         UserRole  @default(VIEWER)
+  createdAt    DateTime  @default(now())
+  commands     Command[]
+}
+
+model Building {
+  id        String  @id @default(cuid())
+  name      String
+  campus    String?
+  floors    Floor[]
+  createdAt DateTime @default(now())
+}
+
+model Floor {
+  id         String   @id @default(cuid())
+  name       String
+  level      Int
+  buildingId String
+  building   Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  rooms      Room[]
+}
+
+model Room {
+  id       String   @id @default(cuid())
+  name     String
+  code     String   @unique
+  floorId  String
+  floor    Floor    @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  acUnits  AcUnit[]
+}
+
+model AcUnit {
+  id             String       @id @default(cuid())
+  name           String
+  assetTag       String       @unique
+  manufacturer   String?
+  model          String?
+  powerState     AcPowerState @default(UNKNOWN)
+  mode           AcMode       @default(AUTO)
+  setpointC      Int          @default(24)
+  fanSpeed       String       @default("AUTO")
+  swingEnabled   Boolean      @default(false)
+  online         Boolean      @default(false)
+  lastSeenAt     DateTime?
+  roomId         String
+  room           Room         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  device         IotDevice?
+  telemetry      Telemetry[]
+  commands       Command[]
+  alerts         Alert[]
+}
+
+model IotDevice {
+  id          String   @id @default(cuid())
+  serial      String   @unique
+  tokenHash   String
+  firmware    String?
+  ipAddress   String?
+  rssi         Int?
+  acUnitId    String   @unique
+  acUnit      AcUnit   @relation(fields: [acUnitId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  lastSeenAt  DateTime?
+}
+
+model Telemetry {
+  id              String       @id @default(cuid())
+  acUnitId         String
+  acUnit           AcUnit       @relation(fields: [acUnitId], references: [id], onDelete: Cascade)
+  powerState       AcPowerState
+  mode             AcMode
+  ambientTempC     Float?
+  coilTempC        Float?
+  humidityPct      Float?
+  setpointC        Int?
+  fanSpeed         String?
+  swingEnabled     Boolean?
+  voltage          Float?
+  current          Float?
+  activePowerW     Float?
+  energyKwh        Float?
+  errorCode        String?
+  rssi             Int?
+  recordedAt       DateTime     @default(now())
+
+  @@index([acUnitId, recordedAt])
+}
+
+model Command {
+  id          String        @id @default(cuid())
+  acUnitId    String
+  acUnit      AcUnit        @relation(fields: [acUnitId], references: [id], onDelete: Cascade)
+  issuedById  String?
+  issuedBy    User?         @relation(fields: [issuedById], references: [id], onDelete: SetNull)
+  type        CommandType
+  payload     Json
+  status      CommandStatus @default(PENDING)
+  result      String?
+  createdAt   DateTime      @default(now())
+  sentAt      DateTime?
+  ackedAt     DateTime?
+}
+
+model Alert {
+  id        String   @id @default(cuid())
+  acUnitId  String
+  acUnit    AcUnit   @relation(fields: [acUnitId], references: [id], onDelete: Cascade)
+  severity  String
+  title     String
+  message   String
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
