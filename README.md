@@ -92,3 +92,12 @@ Example body:
 **IoT engineer guide:** [IOT_INTEGRATION.md](./IOT_INTEGRATION.md)  
 **One-page board sheet:** [docs/IOT_CREDENTIALS_TEMPLATE.md](./docs/IOT_CREDENTIALS_TEMPLATE.md)
 
+## Production deployment
+
+The production server runs the API with PM2 and serves the built web app through Nginx. Once its read-only GitHub deploy key is registered, deploy the current `main` branch with:
+
+```bash
+ssh root@139.59.139.30 '/var/www/dit-ac-control/scripts/deploy.sh'
+```
+
+The script fetches `origin/main`, installs locked dependencies, applies Prisma migrations, builds the API and web app, restarts `dit-ac-api` through PM2, and saves the PM2 process list. It refuses to overwrite uncommitted changes on the server.
