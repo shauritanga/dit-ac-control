@@ -100,4 +100,4 @@ The production server runs the API with PM2 and serves the built web app through
 ssh root@139.59.139.30 '/var/www/dit-ac-control/scripts/deploy.sh'
 ```
 
-The script fetches `origin/main`, installs locked dependencies, applies Prisma migrations, builds the API and web app, restarts `dit-ac-api` through PM2, and saves the PM2 process list. It refuses to overwrite uncommitted changes on the server.
+The script fetches `origin/main`, installs locked dependencies, generates the Prisma client, applies Prisma migrations when migration files exist, builds the API and web app, restarts `dit-ac-api` through PM2, and saves the PM2 process list. It refuses to overwrite uncommitted changes on the server.

@@ -23,7 +23,11 @@ git reset --hard "origin/$BRANCH"
 npm ci
 docker compose up -d postgres
 npm --workspace apps/api run prisma:generate
-npm --workspace apps/api exec prisma migrate deploy
+if [ -d apps/api/prisma/migrations ] && find apps/api/prisma/migrations -mindepth 1 -type f -print -quit | grep -q .; then
+  npm --workspace apps/api exec prisma migrate deploy
+else
+  echo "No Prisma migrations found; preserving the existing production schema."
+fi
 npm run build
 pm2 startOrReload ecosystem.config.cjs --update-env
 pm2 save
