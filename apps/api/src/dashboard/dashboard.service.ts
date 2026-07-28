@@ -13,6 +13,8 @@ export class DashboardService {
   async overview() {
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const offlineThreshold = new Date(Date.now() - 15 * 60 * 1000);
+    const isOnline = (lastSeenAt: Date | null | undefined) =>
+      Boolean(lastSeenAt && lastSeenAt >= offlineThreshold);
 
     const [
       units,
@@ -97,6 +99,7 @@ export class DashboardService {
               id: true,
               name: true,
               online: true,
+              lastSeenAt: true,
               assetTag: true,
             },
           },
@@ -136,7 +139,7 @@ export class DashboardService {
     ]);
 
     const total = units.length;
-    const online = units.filter((u) => u.online).length;
+    const online = units.filter((u) => isOnline(u.lastSeenAt)).length;
     const offline = total - online;
     const poweredOn = units.filter((u) => u.powerState === 'ON').length;
     const poweredOff = units.filter((u) => u.powerState === 'OFF').length;
@@ -182,8 +185,7 @@ export class DashboardService {
     const commands24h = commandStatusGroups.reduce((sum, row) => sum + row._count._all, 0);
 
     const devicesOnline = devices.filter((d) => {
-      if (!d.lastSeenAt) return false;
-      return d.lastSeenAt >= offlineThreshold;
+      return isOnline(d.lastSeenAt);
     }).length;
 
     const rooms = buildings.flatMap((b) => b.floors.flatMap((f) => f.rooms));
@@ -215,7 +217,7 @@ export class DashboardService {
         floors: building.floors.length,
         rooms: building.floors.reduce((sum, f) => sum + f.rooms.length, 0),
         unitCount: buildingUnits.length,
-        onlineCount: buildingUnits.filter((u) => u.online).length,
+        onlineCount: buildingUnits.filter((u) => isOnline(u.lastSeenAt)).length,
         poweredOnCount: buildingUnits.filter((u) => u.powerState === 'ON').length,
         openAlerts: buildingAlerts,
         activePowerW: Math.round(buildingPower),
@@ -226,15 +228,9 @@ export class DashboardService {
       .map((unit) => {
         const latest = unit.telemetry[0];
         const reasons: string[] = [];
-        if (!unit.online) reasons.push('Offline');
+        const unitOnline = isOnline(unit.lastSeenAt);
+        if (!unitOnline) reasons.push('Offline');
         if (unit.alerts.length > 0) reasons.push(`${unit.alerts.length} open alert(s)`);
-        if (
-          unit.online &&
-          unit.lastSeenAt &&
-          unit.lastSeenAt < offlineThreshold
-        ) {
-          reasons.push('Stale telemetry');
-        }
         if (typeof latest?.ambientTempC === 'number' && latest.ambientTempC >= 28) {
           reasons.push(`High ambient ${latest.ambientTempC.toFixed(1)}°C`);
         }
@@ -247,7 +243,7 @@ export class DashboardService {
           id: unit.id,
           name: unit.name,
           assetTag: unit.assetTag,
-          online: unit.online,
+          online: unitOnline,
           powerState: unit.powerState,
           mode: unit.mode,
           setpointC: unit.setpointC,
@@ -259,7 +255,7 @@ export class DashboardService {
           roomCode: unit.room.code,
           openAlerts: unit.alerts.length,
           reasons,
-          severity: !unit.online || unit.alerts.some((a) =>
+          severity: !unitOnline || unit.alerts.some((a) =>
             ['critical', 'CRITICAL', 'error', 'ERROR', 'high', 'HIGH'].includes(a.severity),
           )
             ? 'critical'
@@ -283,7 +279,7 @@ export class DashboardService {
           building: unit.room.floor.building.name,
           room: unit.room.name,
           powerState: unit.powerState,
-          online: unit.online,
+          online: isOnline(unit.lastSeenAt),
           activePowerW: latest?.activePowerW ?? 0,
         };
       })
@@ -302,15 +298,13 @@ export class DashboardService {
       rssi: device.rssi,
       ipAddress: device.ipAddress,
       lastSeenAt: device.lastSeenAt,
-      online:
-        Boolean(device.lastSeenAt) &&
-        (device.lastSeenAt as Date) >= offlineThreshold,
+      online: isOnline(device.lastSeenAt),
       acUnit: device.acUnit
         ? {
             id: device.acUnit.id,
             name: device.acUnit.name,
             assetTag: device.acUnit.assetTag,
-            online: device.acUnit.online,
+            online: isOnline(device.acUnit.lastSeenAt),
           }
         : null,
     }));

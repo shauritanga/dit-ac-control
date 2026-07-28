@@ -14,7 +14,7 @@ import { ProvisionIotDeviceDto, RotateIotDeviceTokenDto } from './dto';
 export class DevicesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(filters: { q?: string; status?: string }) {
+  async list(filters: { q?: string; status?: string }) {
     const where: Prisma.AcUnitWhereInput = {};
     if (filters.q) {
       where.OR = [
@@ -23,12 +23,11 @@ export class DevicesService {
         { room: { name: { contains: filters.q, mode: 'insensitive' } } }
       ];
     }
-    if (filters.status === 'online') where.online = true;
-    if (filters.status === 'offline') where.online = false;
     if (filters.status === 'on') where.powerState = 'ON';
     if (filters.status === 'off') where.powerState = 'OFF';
 
-    return this.prisma.acUnit.findMany({
+    const offlineThreshold = new Date(Date.now() - 15 * 60 * 1000);
+    const units = await this.prisma.acUnit.findMany({
       where,
       orderBy: { name: 'asc' },
       include: {
@@ -37,10 +36,19 @@ export class DevicesService {
         alerts: { where: { resolved: false }, orderBy: { createdAt: 'desc' }, take: 3 }
       }
     });
+
+    const withLiveStatus = units.map((unit) => ({
+      ...unit,
+      online: Boolean(unit.lastSeenAt && unit.lastSeenAt >= offlineThreshold),
+    }));
+
+    if (filters.status === 'online') return withLiveStatus.filter((unit) => unit.online);
+    if (filters.status === 'offline') return withLiveStatus.filter((unit) => !unit.online);
+    return withLiveStatus;
   }
 
-  detail(id: string) {
-    return this.prisma.acUnit.findUniqueOrThrow({
+  async detail(id: string) {
+    const unit = await this.prisma.acUnit.findUniqueOrThrow({
       where: { id },
       include: {
         room: { include: { floor: { include: { building: true } } } },
@@ -50,10 +58,16 @@ export class DevicesService {
         alerts: { orderBy: { createdAt: 'desc' }, take: 20 }
       }
     });
+    const offlineThreshold = new Date(Date.now() - 15 * 60 * 1000);
+    return {
+      ...unit,
+      online: Boolean(unit.lastSeenAt && unit.lastSeenAt >= offlineThreshold),
+    };
   }
 
-  listIotDevices() {
-    return this.prisma.iotDevice.findMany({
+  async listIotDevices() {
+    const offlineThreshold = new Date(Date.now() - 15 * 60 * 1000);
+    const devices = await this.prisma.iotDevice.findMany({
       orderBy: { serial: 'asc' },
       select: {
         id: true,
@@ -69,6 +83,7 @@ export class DevicesService {
             name: true,
             assetTag: true,
             online: true,
+            lastSeenAt: true,
             room: {
               select: {
                 name: true,
@@ -85,6 +100,20 @@ export class DevicesService {
         }
       }
     });
+
+    return devices.map((device) => ({
+      ...device,
+      online: Boolean(device.lastSeenAt && device.lastSeenAt >= offlineThreshold),
+      acUnit: device.acUnit
+        ? {
+            ...device.acUnit,
+            online: Boolean(
+              device.acUnit.lastSeenAt &&
+                device.acUnit.lastSeenAt >= offlineThreshold,
+            ),
+          }
+        : null,
+    }));
   }
 
   /**
