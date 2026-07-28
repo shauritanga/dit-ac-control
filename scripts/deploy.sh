@@ -21,7 +21,11 @@ git fetch --prune origin "$BRANCH"
 git reset --hard "origin/$BRANCH"
 
 npm ci
-docker compose up -d postgres
+if command -v docker >/dev/null 2>&1; then
+  docker compose up -d postgres
+else
+  echo "Docker is unavailable; using the configured production database."
+fi
 npm --workspace apps/api run prisma:generate
 if [ -d apps/api/prisma/migrations ] && find apps/api/prisma/migrations -mindepth 1 -type f -print -quit | grep -q .; then
   npm --workspace apps/api exec prisma migrate deploy
