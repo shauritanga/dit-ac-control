@@ -32,6 +32,15 @@ export function severityTone(severity: string): 'critical' | 'warning' | 'info' 
   return 'info';
 }
 
+export function formatDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+}
+
 export function roleLabel(role: string): string {
   return role
     .replaceAll('_', ' ')

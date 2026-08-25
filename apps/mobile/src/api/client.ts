@@ -5,6 +5,7 @@ import type {
   LoginResponse,
   OverviewData,
   Summary,
+  TelemetryHistoryResponse,
 } from './types';
 
 export class ApiError extends Error {
@@ -104,6 +105,22 @@ export async function fetchUnits(
 
 export async function fetchUnit(token: string, id: string): Promise<AcUnit> {
   return apiRequest<AcUnit>(`/ac-units/${id}`, token);
+}
+
+export async function fetchTelemetryHistory(
+  token: string,
+  unitId: string,
+  params?: { page?: number; pageSize?: number; powerState?: string },
+): Promise<TelemetryHistoryResponse> {
+  const search = new URLSearchParams({
+    page: String(params?.page ?? 1),
+    pageSize: String(params?.pageSize ?? 10),
+  });
+  if (params?.powerState) search.set('powerState', params.powerState);
+  return apiRequest<TelemetryHistoryResponse>(
+    `/ac-units/${unitId}/telemetry?${search}`,
+    token,
+  );
 }
 
 export async function issueCommand(

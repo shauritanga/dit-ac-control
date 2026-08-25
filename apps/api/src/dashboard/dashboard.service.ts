@@ -1,6 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+export type EnergyPeriod = 'today' | 'week' | 'month';
+
+/** Blended TANESCO-style tariff used for estimated cost (TZS / kWh). */
+const TARIFF_TZS_PER_KWH = 750;
+/** Live load at or above this is flagged High on the energy report. */
+const HIGH_POWER_W = 1500;
+const TZ = 'Africa/Dar_es_Salaam';
+const ONLINE_MS = 15 * 60 * 1000;
+
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
@@ -367,6 +376,120 @@ export class DashboardService {
     };
   }
 
+  async energyReport(period: EnergyPeriod) {
+    const { from, to } = periodBounds(period);
+    const now = new Date();
+
+    const [units, periodTelemetry] = await Promise.all([
+      this.prisma.acUnit.findMany({
+        include: {
+          room: { include: { floor: { include: { building: true } } } },
+          telemetry: { orderBy: { recordedAt: 'desc' }, take: 1 },
+        },
+        orderBy: [{ assetTag: 'asc' }, { name: 'asc' }],
+      }),
+      this.prisma.telemetry.findMany({
+        where: { recordedAt: { gte: from, lte: to } },
+        select: {
+          acUnitId: true,
+          recordedAt: true,
+          activePowerW: true,
+          energyKwh: true,
+        },
+        orderBy: { recordedAt: 'asc' },
+      }),
+    ]);
+
+    const samplesByUnit = new Map<string, typeof periodTelemetry>();
+    for (const row of periodTelemetry) {
+      const list = samplesByUnit.get(row.acUnitId) ?? [];
+      list.push(row);
+      samplesByUnit.set(row.acUnitId, list);
+    }
+
+    const baselines = await Promise.all(
+      units.map((unit) =>
+        this.prisma.telemetry.findFirst({
+          where: {
+            acUnitId: unit.id,
+            recordedAt: { lt: from },
+            energyKwh: { not: null },
+          },
+          orderBy: { recordedAt: 'desc' },
+          select: { energyKwh: true },
+        }),
+      ),
+    );
+
+    const rows = units.map((unit, index) => {
+      const energyKwh = round2(
+        energyFromSamples(
+          samplesByUnit.get(unit.id) ?? [],
+          baselines[index]?.energyKwh ?? null,
+          from,
+          to,
+          now,
+        ),
+      );
+      const latest = unit.telemetry[0];
+      const activePowerW = latest?.activePowerW ?? 0;
+      return {
+        id: unit.id,
+        name: unit.name,
+        assetTag: unit.assetTag,
+        location: unit.room.name,
+        building: unit.room.floor.building.name,
+        energyKwh,
+        costTzs: Math.round(energyKwh * TARIFF_TZS_PER_KWH),
+        activePowerW,
+        status: 'Normal' as 'Normal' | 'High',
+      };
+    });
+
+    const withEnergy = rows.filter((row) => row.energyKwh > 0);
+    const avgEnergy =
+      withEnergy.length === 0
+        ? 0
+        : withEnergy.reduce((sum, row) => sum + row.energyKwh, 0) / withEnergy.length;
+
+    for (const row of rows) {
+      const highLoad = row.activePowerW >= HIGH_POWER_W;
+      const highShare = avgEnergy > 0 && row.energyKwh >= avgEnergy * 1.5;
+      if (highLoad || highShare) row.status = 'High';
+    }
+
+    const totalEnergyKwh = round2(rows.reduce((sum, row) => sum + row.energyKwh, 0));
+    const totalCostTzs = rows.reduce((sum, row) => sum + row.costTzs, 0);
+    const highest = [...rows].sort((a, b) => b.energyKwh - a.energyKwh)[0] ?? null;
+
+    return {
+      period,
+      from: from.toISOString(),
+      to: to.toISOString(),
+      tariffTzsPerKwh: TARIFF_TZS_PER_KWH,
+      totalEnergyKwh,
+      totalCostTzs,
+      highestUsage: highest
+        ? {
+            id: highest.id,
+            name: highest.name,
+            assetTag: highest.assetTag,
+            energyKwh: highest.energyKwh,
+          }
+        : null,
+      units: rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        assetTag: row.assetTag,
+        location: row.location,
+        building: row.building,
+        energyKwh: row.energyKwh,
+        costTzs: row.costTzs,
+        status: row.status,
+      })),
+    };
+  }
+
   private countBy(values: string[]) {
     const map = new Map<string, number>();
     for (const value of values) {
@@ -511,4 +634,108 @@ export class DashboardService {
       )
       .slice(0, 14);
   }
+}
+
+function round2(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function zonedYmd(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const num = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value);
+  return { y: num('year'), m: num('month'), d: num('day') };
+}
+
+/** Midnight in Africa/Dar_es_Salaam as a UTC Date (EAT is UTC+3, no DST). */
+function eatMidnight(y: number, m: number, d: number) {
+  return new Date(Date.UTC(y, m - 1, d, -3, 0, 0, 0));
+}
+
+function periodBounds(period: EnergyPeriod) {
+  const now = new Date();
+  const { y, m, d } = zonedYmd(now);
+  const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  const mondayOffset = (weekday + 6) % 7;
+
+  let from: Date;
+  if (period === 'week') {
+    from = eatMidnight(y, m, d - mondayOffset);
+  } else if (period === 'month') {
+    from = eatMidnight(y, m, 1);
+  } else {
+    from = eatMidnight(y, m, d);
+  }
+
+  return { from, to: now };
+}
+
+function energyFromSamples(
+  samples: Array<{
+    recordedAt: Date;
+    activePowerW: number | null;
+    energyKwh: number | null;
+  }>,
+  baselineKwh: number | null,
+  from: Date,
+  to: Date,
+  now: Date,
+) {
+  const sorted = [...samples].sort(
+    (a, b) => a.recordedAt.getTime() - b.recordedAt.getTime(),
+  );
+
+  const lastMeter = [...sorted]
+    .reverse()
+    .find((row) => typeof row.energyKwh === 'number')?.energyKwh;
+  if (typeof lastMeter === 'number' && typeof baselineKwh === 'number') {
+    const delta = lastMeter - baselineKwh;
+    if (delta >= 0) return delta;
+  }
+
+  const meters = sorted
+    .map((row) => row.energyKwh)
+    .filter((value): value is number => typeof value === 'number');
+  if (meters.length >= 2) {
+    const delta = meters[meters.length - 1] - meters[0];
+    if (delta >= 0) return delta;
+  }
+
+  let kwh = 0;
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    const hours =
+      (cur.recordedAt.getTime() - prev.recordedAt.getTime()) / 3_600_000;
+    if (hours <= 0 || hours > 6) continue;
+    const p1 = prev.activePowerW ?? 0;
+    const p2 = cur.activePowerW ?? 0;
+    kwh += ((p1 + p2) / 2 / 1000) * hours;
+  }
+
+  const last = sorted[sorted.length - 1];
+  const end = Math.min(to.getTime(), now.getTime());
+  if (last && typeof last.activePowerW === 'number' && end > last.recordedAt.getTime()) {
+    const stale = now.getTime() - last.recordedAt.getTime() > ONLINE_MS;
+    if (!stale) {
+      kwh += (last.activePowerW / 1000) * ((end - last.recordedAt.getTime()) / 3_600_000);
+    }
+  } else if (sorted.length === 0) {
+    return 0;
+  } else if (sorted.length === 1 && typeof sorted[0].activePowerW === 'number') {
+    const sample = sorted[0];
+    const powerW = sample.activePowerW;
+    const stale = now.getTime() - sample.recordedAt.getTime() > ONLINE_MS;
+    if (!stale && typeof powerW === 'number') {
+      const start = Math.max(from.getTime(), sample.recordedAt.getTime());
+      kwh += (powerW / 1000) * ((end - start) / 3_600_000);
+    }
+  }
+
+  return Math.max(0, kwh);
 }

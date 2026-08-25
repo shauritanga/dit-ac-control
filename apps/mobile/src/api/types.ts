@@ -84,3 +84,30 @@ export type OverviewData = {
 };
 
 export type CommandType = 'POWER' | 'SETPOINT' | 'MODE' | 'FAN_SPEED' | 'SWING' | 'FULL_STATE';
+
+export type TelemetryRecord = {
+  id: string;
+  powerState: 'ON' | 'OFF' | 'UNKNOWN';
+  mode: string;
+  ambientTempC: number | null;
+  coilTempC: number | null;
+  humidityPct: number | null;
+  setpointC: number | null;
+  fanSpeed: string | null;
+  swingEnabled: boolean | null;
+  voltage: number | null;
+  current: number | null;
+  activePowerW: number | null;
+  energyKwh: number | null;
+  errorCode: string | null;
+  rssi: number | null;
+  recordedAt: string;
+};
+
+export type TelemetryHistoryResponse = {
+  items: TelemetryRecord[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};

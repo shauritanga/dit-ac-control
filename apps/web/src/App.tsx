@@ -9,7 +9,6 @@ import { DashboardPage } from './pages/DashboardPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ProfilePage } from './pages/ProfilePage';
-import { DevicesPage } from './pages/DevicesPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { apiRequest, SOCKET_URL } from './lib/api';
@@ -60,7 +59,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: 'Overview', icon: 'overview' },
   { id: 'operations', label: 'Operations', icon: 'operations' },
   { id: 'buildings', label: 'Buildings', icon: 'buildings' },
-  { id: 'devices', label: 'Devices', icon: 'devices' },
   { id: 'history', label: 'History', icon: 'history' },
   { id: 'reports', label: 'Reports', icon: 'reports' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
@@ -324,9 +322,7 @@ function AuthenticatedApp({
     if (
       activeNav === 'operations' ||
       activeNav === 'buildings' ||
-      activeNav === 'devices' ||
-      activeNav === 'history' ||
-      activeNav === 'reports'
+      activeNav === 'history'
     ) {
       void loadOperations();
     }
@@ -382,10 +378,8 @@ function AuthenticatedApp({
         };
       case 'buildings':
         return { title: 'Buildings', subtitle: 'Campus structure' };
-      case 'devices':
-        return { title: 'Devices', subtitle: 'Controllers & sensors' };
       case 'reports':
-        return { title: 'Reports', subtitle: 'Fleet status & incidents' };
+        return { title: 'Reports', subtitle: 'View energy consumption and cost reports.' };
       case 'history':
         return { title: 'Telemetry history', subtitle: 'Received device readings' };
       case 'settings':
@@ -527,22 +521,7 @@ function AuthenticatedApp({
           </div>
         )}
 
-        {activeNav === 'devices' && overview && (
-          <DevicesPage
-            devices={overview.deviceHealth}
-            onOpenUnit={(unitId) => openOperations(unitId)}
-          />
-        )}
-
-        {activeNav === 'reports' && (
-          <ReportsPage
-            data={overview}
-            units={units}
-            loading={overviewLoading}
-            error={overviewError || error}
-            onOpenOperations={openOperations}
-          />
-        )}
+        {activeNav === 'reports' && <ReportsPage api={api} />}
 
         {activeNav === 'profile' && (
           <ProfilePage

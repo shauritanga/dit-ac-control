@@ -1,125 +1,84 @@
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Activity,
-  AlertTriangle,
+  CalendarDays,
+  Download,
   FileBarChart2,
-  Power,
-  Printer,
-  Thermometer,
-  Wifi,
-  WifiOff,
+  TrendingUp,
+  Wallet,
   Zap,
 } from 'lucide-react';
-import type { AcUnit, OverviewData } from '../types';
-import { usePreferences } from '../context/PreferencesContext';
-import {
-  formatPower,
-  formatRelativeTime,
-  formatTemp,
-  severityTone,
-} from '../lib/format';
+import type { EnergyPeriod, EnergyReport } from '../types';
+import { formatKwh, formatTzs } from '../lib/format';
 
 type ReportsPageProps = {
-  data: OverviewData | null;
-  units: AcUnit[];
-  loading: boolean;
-  error: string;
-  onOpenOperations: (unitId?: string) => void;
+  api: <T>(path: string, options?: RequestInit) => Promise<T>;
 };
 
-export function ReportsPage({
-  data,
-  units,
-  loading,
-  error,
-  onOpenOperations,
-}: ReportsPageProps) {
-  const { preferences } = usePreferences();
-  const generatedAt = useMemo(() => new Date(), [data?.generatedAt]);
+const PERIODS: { id: EnergyPeriod; label: string }[] = [
+  { id: 'today', label: 'Today' },
+  { id: 'week', label: 'This week' },
+  { id: 'month', label: 'This month' },
+];
 
-  const minW = preferences.powerThresholdMinW;
-  const maxW = preferences.powerThresholdMaxW;
+export function ReportsPage({ api }: ReportsPageProps) {
+  const [period, setPeriod] = useState<EnergyPeriod>('today');
+  const [report, setReport] = useState<EnergyReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  if (loading && !data && units.length === 0) {
-    return (
-      <div className="reports-page">
-        <div className="settings-card">
-          <p className="muted">Loading report data…</p>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    void api<EnergyReport>(`/dashboard/energy-report?period=${period}`)
+      .then((data) => {
+        if (!active) return;
+        setReport(data);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : 'Unable to load energy report.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, period]);
 
-  if (error && !data && units.length === 0) {
-    return (
-      <div className="reports-page">
-        <div className="error-box" role="alert">
-          {error}
-        </div>
-      </div>
-    );
-  }
-
-  const summary = data?.summary ?? null;
-  const sortedUnits = [...units].sort((a, b) => a.name.localeCompare(b.name));
-
-  function powerBandStatus(powerState: string, watts: number | undefined) {
-    const w = watts ?? 0;
-    if (watts == null && powerState === 'UNKNOWN') {
-      return { label: 'No data', tone: 'info' as const };
-    }
-    if (powerState === 'ON' && w < minW) {
-      return { label: 'Below min (fault risk)', tone: 'warning' as const };
-    }
-    if (w >= maxW && maxW > 0) {
-      return { label: 'Above max (overload)', tone: 'critical' as const };
-    }
-    if (powerState === 'ON') {
-      return { label: 'Within band', tone: 'success' as const };
-    }
-    if (powerState === 'OFF') {
-      return { label: 'Powered off', tone: 'info' as const };
-    }
-    return { label: 'No data', tone: 'info' as const };
-  }
-
-  function tagClass(tone: 'success' | 'warning' | 'critical' | 'info') {
-    if (tone === 'success') return 'ov-tag-good';
-    if (tone === 'critical') return 'ov-tag-critical';
-    if (tone === 'warning') return 'ov-tag-warning';
-    return 'ov-tag-info';
-  }
+  const units = report?.units ?? [];
+  const year = new Date().getFullYear();
 
   return (
     <div className="reports-page">
       <header className="reports-hero">
-        <div className="reports-hero-brand">
-          <div>
-            <p className="eyebrow">Fleet snapshot</p>
-            <h2>Reports</h2>
-            <p>
-              Status report for the two prototype air conditioners — online state, power band, and
-              incidents.
-            </p>
-          </div>
+        <div>
+          <h2>Reports</h2>
+          <p>View energy consumption and cost reports.</p>
         </div>
         <div className="reports-hero-actions">
-          <div className="reports-meta">
-            <span>Generated</span>
-            <strong>
-              {generatedAt.toLocaleString(undefined, {
-                dateStyle: 'medium',
-                timeStyle: 'short',
-              })}
-            </strong>
-          </div>
+          <label className="reports-period">
+            <CalendarDays size={16} aria-hidden="true" />
+            <span className="sr-only">Report period</span>
+            <select
+              value={period}
+              onChange={(event) => setPeriod(event.target.value as EnergyPeriod)}
+            >
+              {PERIODS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
-            className="reports-print-btn no-print-hide"
+            className="reports-export no-print-hide"
             onClick={() => window.print()}
           >
-            <Printer size={16} />
-            Print / PDF
+            <Download size={16} aria-hidden="true" />
+            Export PDF
           </button>
         </div>
       </header>
@@ -130,227 +89,102 @@ export function ReportsPage({
         </div>
       )}
 
-      <section className="reports-kpis" aria-label="Summary">
-        <div className="reports-kpi">
-          <Wifi size={18} />
+      <section className="reports-kpis" aria-label="Energy summary">
+        <article className="reports-kpi">
+          <span className="reports-kpi-icon is-energy" aria-hidden="true">
+            <Zap size={18} />
+          </span>
           <div>
-            <span>Online</span>
-            <strong>
-              {summary ? `${summary.online}/${summary.total}` : `${sortedUnits.filter((u) => u.online).length}/${sortedUnits.length}`}
-            </strong>
+            <strong>{loading && !report ? '—' : formatKwh(report?.totalEnergyKwh ?? 0)}</strong>
+            <span className="reports-kpi-title">Total Energy</span>
+            <span className="reports-kpi-hint">Total energy consumption</span>
           </div>
-        </div>
-        <div className="reports-kpi">
-          <Power size={18} />
+        </article>
+        <article className="reports-kpi">
+          <span className="reports-kpi-icon is-cost" aria-hidden="true">
+            <Wallet size={18} />
+          </span>
           <div>
-            <span>Running</span>
-            <strong>
-              {summary?.poweredOn ??
-                sortedUnits.filter((u) => u.powerState === 'ON').length}
-            </strong>
+            <strong>{loading && !report ? '—' : formatTzs(report?.totalCostTzs ?? 0)}</strong>
+            <span className="reports-kpi-title">Total Cost</span>
+            <span className="reports-kpi-hint">Estimated total cost</span>
           </div>
-        </div>
-        <div className="reports-kpi">
-          <Zap size={18} />
+        </article>
+        <article className="reports-kpi">
+          <span className="reports-kpi-icon is-peak" aria-hidden="true">
+            <TrendingUp size={18} />
+          </span>
           <div>
-            <span>Live load</span>
             <strong>
-              {formatPower(
-                summary?.activePowerW ??
-                  sortedUnits.reduce(
-                    (sum, u) => sum + (u.telemetry[0]?.activePowerW ?? 0),
-                    0,
-                  ),
-              )}
+              {report?.highestUsage && (report.highestUsage.energyKwh > 0 || units.length > 0)
+                ? report.highestUsage.assetTag
+                : '—'}
             </strong>
+            <span className="reports-kpi-title">Highest Usage AC</span>
+            <span className="reports-kpi-hint">
+              {report?.highestUsage ? formatKwh(report.highestUsage.energyKwh) : 'No usage yet'}
+            </span>
           </div>
-        </div>
-        <div className="reports-kpi">
-          <AlertTriangle size={18} />
-          <div>
-            <span>Open alerts</span>
-            <strong>
-              {summary?.openAlerts ??
-                sortedUnits.reduce((sum, u) => sum + u.alerts.length, 0)}
-            </strong>
-          </div>
-        </div>
-        <div className="reports-kpi">
-          <Activity size={18} />
-          <div>
-            <span>Power band</span>
-            <strong>
-              {minW}–{maxW} W
-            </strong>
-          </div>
-        </div>
+        </article>
       </section>
 
-      <section className="settings-card reports-section">
-        <div className="settings-card-header">
-          <div>
-            <h3>Unit status report</h3>
-            <p>Lab 1 AC (DIT-AC-001) and Lab 2 AC (DIT-AC-002).</p>
-          </div>
-          <span className="ov-count">{sortedUnits.length}</span>
-        </div>
+      <section className="reports-panel">
+        <h3>Energy consumption report</h3>
 
-        {sortedUnits.length === 0 ? (
+        {loading && !report ? (
+          <div className="reports-empty">
+            <p>Loading energy report…</p>
+          </div>
+        ) : units.length === 0 ? (
           <div className="reports-empty">
             <FileBarChart2 size={28} />
-            <p>No AC units found. Seed the database with the two prototype units.</p>
+            <p>No AC units found. The table lists only units registered in the system.</p>
           </div>
         ) : (
           <div className="ov-table-wrap">
             <table className="ov-table reports-table">
               <thead>
                 <tr>
-                  <th>Unit</th>
+                  <th>AC unit</th>
                   <th>Location</th>
-                  <th>Link</th>
-                  <th>Power</th>
-                  <th>Ambient</th>
-                  <th>Load</th>
-                  <th>Power band</th>
-                  <th>Alerts</th>
-                  <th className="no-print-hide" />
+                  <th>Energy (kWh)</th>
+                  <th>Cost (TZS)</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {sortedUnits.map((unit) => {
-                  const watts = unit.telemetry[0]?.activePowerW;
-                  const ambient = unit.telemetry[0]?.ambientTempC;
-                  const band = powerBandStatus(unit.powerState, watts);
-                  return (
-                    <tr key={unit.id}>
-                      <td>
-                        <strong>{unit.name}</strong>
-                        <span className="ov-table-sub">{unit.assetTag}</span>
-                      </td>
-                      <td>
-                        {unit.room.floor.building.name}
-                        <span className="ov-table-sub">{unit.room.name}</span>
-                      </td>
-                      <td>
-                        <span className={`ov-tag ${unit.online ? 'ov-tag-good' : 'ov-tag-critical'}`}>
-                          {unit.online ? (
-                            <>
-                              <Wifi size={12} /> Online
-                            </>
-                          ) : (
-                            <>
-                              <WifiOff size={12} /> Offline
-                            </>
-                          )}
-                        </span>
-                      </td>
-                      <td>{unit.powerState}</td>
-                      <td>{formatTemp(ambient)}</td>
-                      <td className="ov-num">{formatPower(watts)}</td>
-                      <td>
-                        <span className={`ov-tag ${tagClass(band.tone)}`}>{band.label}</span>
-                      </td>
-                      <td>{unit.alerts.length}</td>
-                      <td className="no-print-hide">
-                        <button
-                          type="button"
-                          className="text-btn"
-                          onClick={() => onOpenOperations(unit.id)}
-                        >
-                          Open
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {units.map((unit) => (
+                  <tr key={unit.id}>
+                    <td>
+                      <strong>{unit.assetTag}</strong>
+                      <span className="ov-table-sub">{unit.name}</span>
+                    </td>
+                    <td>{unit.location}</td>
+                    <td className="ov-num">{formatNumberFixed(unit.energyKwh)}</td>
+                    <td className="ov-num">{Math.round(unit.costTzs).toLocaleString('en-US')}</td>
+                    <td>
+                      <span
+                        className={`reports-status ${unit.status === 'High' ? 'is-high' : 'is-normal'}`}
+                      >
+                        {unit.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )}
       </section>
 
-      <div className="reports-two-col">
-        <section className="settings-card reports-section">
-          <div className="settings-card-header">
-            <div>
-              <h3>Open alerts</h3>
-              <p>Unresolved incidents (malfunction, overload, faults).</p>
-            </div>
-          </div>
-          {!data || data.recentAlerts.length === 0 ? (
-            <p className="ov-empty">No open alerts.</p>
-          ) : (
-            <ul className="ov-list ov-list-compact">
-              {data.recentAlerts.map((alert) => (
-                <li key={alert.id} className="ov-feed-row">
-                  <span className={`ov-dot ov-dot-${severityTone(alert.severity)}`} />
-                  <div>
-                    <div className="ov-list-top">
-                      <strong>{alert.title}</strong>
-                      <time>{formatRelativeTime(alert.createdAt)}</time>
-                    </div>
-                    <span className="ov-list-sub">{alert.message}</span>
-                    <span className="ov-list-reasons">
-                      {alert.acUnit.name} · {alert.acUnit.room.name}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="settings-card reports-section">
-          <div className="settings-card-header">
-            <div>
-              <h3>Recent commands</h3>
-              <p>Actions issued from Operations (and their results).</p>
-            </div>
-          </div>
-          {!data || data.recentCommands.length === 0 ? (
-            <p className="ov-empty">No commands recorded yet.</p>
-          ) : (
-            <ul className="ov-list ov-list-compact">
-              {data.recentCommands.slice(0, 12).map((cmd) => (
-                <li key={cmd.id} className="ov-feed-row">
-                  <span
-                    className={`ov-dot ov-dot-${
-                      cmd.status === 'FAILED'
-                        ? 'critical'
-                        : cmd.status === 'ACKED'
-                          ? 'success'
-                          : 'warning'
-                    }`}
-                  />
-                  <div>
-                    <div className="ov-list-top">
-                      <strong>
-                        {cmd.type.replaceAll('_', ' ')} · {cmd.status}
-                      </strong>
-                      <time>{formatRelativeTime(cmd.createdAt)}</time>
-                    </div>
-                    <span className="ov-list-sub">
-                      {cmd.acUnit.name}
-                      {cmd.result ? ` · ${cmd.result}` : ''}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
-
-      <section className="settings-card reports-section">
-        <div className="reports-footnote">
-          <Thermometer size={16} />
-          <p>
-            Power band for this report: minimum <strong>{minW} W</strong>, maximum{' '}
-            <strong>{maxW} W</strong> (from Settings). Change thresholds under Settings → Power
-            thresholds.
-          </p>
-        </div>
-      </section>
+      <p className="reports-copy">© {year} DIT — All rights reserved</p>
     </div>
   );
+}
+
+function formatNumberFixed(value: number) {
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
 }

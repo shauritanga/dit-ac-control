@@ -19,6 +19,16 @@ export function formatTemp(value: number | null | undefined) {
   return `${formatNumber(value, 1)}°C`;
 }
 
+export function formatKwh(value: number | null | undefined, digits = 1) {
+  if (value == null || Number.isNaN(value)) return '—';
+  return `${formatNumber(value, digits)} kWh`;
+}
+
+export function formatTzs(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) return '—';
+  return `TZS ${Math.round(value).toLocaleString('en-US')}`;
+}
+
 export function formatPercent(value: number | null | undefined) {
   if (value == null || Number.isNaN(value)) return '—';
   return `${formatNumber(value, value % 1 === 0 ? 0 : 1)}%`;

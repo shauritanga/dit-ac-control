@@ -19,6 +19,7 @@ import {
   ErrorBanner,
   LoadingBlock,
   PrimaryButton,
+  SectionHeader,
   StatusBadge,
   SuccessBanner,
 } from '../../../src/components/ui';
@@ -175,6 +176,11 @@ export default function UnitDetailScreen() {
         <ErrorBanner message={error} />
         <SuccessBanner message={message} />
 
+        <SectionHeader
+          title="Latest reading"
+          actionLabel="View history"
+          onAction={() => router.push(`/(app)/unit/${unit.id}/history`)}
+        />
         <View style={styles.readings}>
           <Reading label="Ambient" value={formatTemp(latest?.ambientTempC)} />
           <Reading label="Humidity" value={formatHumidity(latest?.humidityPct)} />

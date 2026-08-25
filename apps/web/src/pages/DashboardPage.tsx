@@ -1,14 +1,11 @@
 import { useMemo } from 'react';
 import {
   AlertTriangle,
-  Fan,
   Gauge,
   Power,
   Search,
-  Thermometer,
   Wifi,
   WifiOff,
-  Zap,
 } from 'lucide-react';
 import {
   Area,
@@ -210,42 +207,6 @@ export function DashboardPage({
                     >
                       <Power size={16} />
                       Power {selected.powerState === 'ON' ? 'off' : 'on'}
-                    </button>
-                    <button
-                      type="button"
-                      className="ops-ctrl"
-                      onClick={() =>
-                        onIssue('SETPOINT', {
-                          setpointC: Math.max(16, selected.setpointC - 1),
-                        })
-                      }
-                    >
-                      <Thermometer size={16} />
-                      Cooler
-                    </button>
-                    <button
-                      type="button"
-                      className="ops-ctrl"
-                      onClick={() =>
-                        onIssue('SETPOINT', {
-                          setpointC: Math.min(30, selected.setpointC + 1),
-                        })
-                      }
-                    >
-                      <Thermometer size={16} />
-                      Warmer
-                    </button>
-                    <button
-                      type="button"
-                      className="ops-ctrl"
-                      onClick={() =>
-                        onIssue('FAN_SPEED', {
-                          fanSpeed: selected.fanSpeed === 'AUTO' ? 'HIGH' : 'AUTO',
-                        })
-                      }
-                    >
-                      <Fan size={16} />
-                      Fan {selected.fanSpeed}
                     </button>
                   </div>
                   {notice && <p className="notice">{notice}</p>}

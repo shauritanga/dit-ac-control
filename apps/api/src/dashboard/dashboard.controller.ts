@@ -1,7 +1,7 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt.guard';
-import { DashboardService } from './dashboard.service';
+import { DashboardService, type EnergyPeriod } from './dashboard.service';
 
 @ApiBearerAuth()
 @ApiTags('dashboard')
@@ -18,5 +18,12 @@ export class DashboardController {
   @Get('overview')
   overview() {
     return this.dashboard.overview();
+  }
+
+  @Get('energy-report')
+  energyReport(@Query('period') period?: string) {
+    const value: EnergyPeriod =
+      period === 'week' || period === 'month' ? period : 'today';
+    return this.dashboard.energyReport(value);
   }
 }
