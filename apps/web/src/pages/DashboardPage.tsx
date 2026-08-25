@@ -220,18 +220,6 @@ export function DashboardPage({
                       <strong>{selected.setpointC}°C</strong>
                     </div>
                     <div>
-                      <span>Ambient</span>
-                      <strong>{formatTemp(selected.telemetry[0]?.ambientTempC)}</strong>
-                    </div>
-                    <div>
-                      <span>Humidity</span>
-                      <strong>
-                        {selected.telemetry[0]?.humidityPct != null
-                          ? `${selected.telemetry[0].humidityPct}%`
-                          : '—'}
-                      </strong>
-                    </div>
-                    <div>
                       <span>Power</span>
                       <strong>{formatPower(selected.telemetry[0]?.activePowerW)}</strong>
                     </div>

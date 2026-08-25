@@ -19,7 +19,7 @@ export function formatTemp(value: number | null | undefined) {
   return `${formatNumber(value, 1)}°C`;
 }
 
-export function formatKwh(value: number | null | undefined, digits = 1) {
+export function formatKwh(value: number | null | undefined, digits = 2) {
   if (value == null || Number.isNaN(value)) return '—';
   return `${formatNumber(value, digits)} kWh`;
 }

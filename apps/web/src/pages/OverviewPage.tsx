@@ -5,10 +5,8 @@ import {
   Building2,
   Cpu,
   Power,
-  Thermometer,
   Wifi,
   WifiOff,
-  Zap,
 } from 'lucide-react';
 import {
   Area,
@@ -22,7 +20,6 @@ import {
 import type { OverviewData } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import {
-  formatNumber,
   formatPercent,
   formatPower,
   formatRelativeTime,
@@ -156,20 +153,6 @@ export function OverviewPage({
           hint={`${summary.criticalAlerts ?? 0} critical`}
           tone={summary.openAlerts > 0 ? 'watch' : 'good'}
           onClick={onOpenAlerts}
-        />
-        <Kpi
-          icon={<Zap size={18} />}
-          label="Live load"
-          value={formatPower(summary.activePowerW)}
-          hint={`${formatNumber(summary.energyKwh24h, 1)} kWh / 24h`}
-          tone="neutral"
-        />
-        <Kpi
-          icon={<Thermometer size={18} />}
-          label="Avg ambient"
-          value={formatTemp(summary.avgAmbientTempC)}
-          hint={`setpoint ${formatTemp(summary.avgSetpointC)}`}
-          tone="neutral"
         />
       </section>
 

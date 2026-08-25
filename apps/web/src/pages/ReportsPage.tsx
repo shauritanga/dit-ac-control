@@ -95,8 +95,8 @@ export function ReportsPage({ api }: ReportsPageProps) {
             <Zap size={18} />
           </span>
           <div>
+            <span className="reports-kpi-label">Total Energy</span>
             <strong>{loading && !report ? '—' : formatKwh(report?.totalEnergyKwh ?? 0)}</strong>
-            <span className="reports-kpi-title">Total Energy</span>
             <span className="reports-kpi-hint">Total energy consumption</span>
           </div>
         </article>
@@ -105,8 +105,8 @@ export function ReportsPage({ api }: ReportsPageProps) {
             <Wallet size={18} />
           </span>
           <div>
+            <span className="reports-kpi-label">Total Cost</span>
             <strong>{loading && !report ? '—' : formatTzs(report?.totalCostTzs ?? 0)}</strong>
-            <span className="reports-kpi-title">Total Cost</span>
             <span className="reports-kpi-hint">Estimated total cost</span>
           </div>
         </article>
@@ -115,12 +115,12 @@ export function ReportsPage({ api }: ReportsPageProps) {
             <TrendingUp size={18} />
           </span>
           <div>
+            <span className="reports-kpi-label">Highest Usage AC</span>
             <strong>
               {report?.highestUsage && (report.highestUsage.energyKwh > 0 || units.length > 0)
                 ? report.highestUsage.assetTag
                 : '—'}
             </strong>
-            <span className="reports-kpi-title">Highest Usage AC</span>
             <span className="reports-kpi-hint">
               {report?.highestUsage ? formatKwh(report.highestUsage.energyKwh) : 'No usage yet'}
             </span>
@@ -184,7 +184,7 @@ export function ReportsPage({ api }: ReportsPageProps) {
 
 function formatNumberFixed(value: number) {
   return value.toLocaleString('en-US', {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 }
