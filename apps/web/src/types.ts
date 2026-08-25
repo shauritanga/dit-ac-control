@@ -225,6 +225,11 @@ export type TelemetryRecord = {
   recordedAt: string;
 };
 
+export type WorkspaceSettings = {
+  tariffTzsPerKwh: number;
+  updatedAt?: string;
+};
+
 export type EnergyPeriod = 'today' | 'week' | 'month';
 
 export type EnergyReportUnit = {

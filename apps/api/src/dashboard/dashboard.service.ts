@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SettingsService } from '../settings/settings.service';
 
 export type EnergyPeriod = 'today' | 'week' | 'month';
 
-/** Blended TANESCO-style tariff used for estimated cost (TZS / kWh). */
-const TARIFF_TZS_PER_KWH = 750;
 /** Live load at or above this is flagged High on the energy report. */
 const HIGH_POWER_W = 1500;
 const TZ = 'Africa/Dar_es_Salaam';
@@ -12,7 +11,10 @@ const ONLINE_MS = 15 * 60 * 1000;
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
+  ) {}
 
   async summary() {
     const overview = await this.overview();
@@ -379,6 +381,7 @@ export class DashboardService {
   async energyReport(period: EnergyPeriod) {
     const { from, to } = periodBounds(period);
     const now = new Date();
+    const tariffTzsPerKwh = await this.settings.getTariffTzsPerKwh();
 
     const [units, periodTelemetry] = await Promise.all([
       this.prisma.acUnit.findMany({
@@ -440,7 +443,7 @@ export class DashboardService {
         location: unit.room.name,
         building: unit.room.floor.building.name,
         energyKwh,
-        costTzs: Math.round(energyKwh * TARIFF_TZS_PER_KWH),
+        costTzs: Math.round(energyKwh * tariffTzsPerKwh),
         activePowerW,
         status: 'Normal' as 'Normal' | 'High',
       };
@@ -466,7 +469,7 @@ export class DashboardService {
       period,
       from: from.toISOString(),
       to: to.toISOString(),
-      tariffTzsPerKwh: TARIFF_TZS_PER_KWH,
+      tariffTzsPerKwh,
       totalEnergyKwh,
       totalCostTzs,
       highestUsage: highest

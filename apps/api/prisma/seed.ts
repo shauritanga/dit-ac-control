@@ -104,6 +104,12 @@ async function main() {
     ],
   });
 
+  await prisma.workspaceSettings.upsert({
+    where: { id: 'default' },
+    update: {},
+    create: { id: 'default', tariffTzsPerKwh: 750 },
+  });
+
   const unitCount = await prisma.acUnit.count();
   const roomCount = await prisma.room.count();
   const telemetryCount = await prisma.telemetry.count();

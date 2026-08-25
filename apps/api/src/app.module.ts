@@ -7,6 +7,7 @@ import { DevicesModule } from './devices/devices.module';
 import { IotModule } from './iot/iot.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { SettingsModule } from './settings/settings.module';
 import { TelemetryModule } from './telemetry/telemetry.module';
 import { UsersModule } from './users/users.module';
 
@@ -21,6 +22,7 @@ import { UsersModule } from './users/users.module';
     TelemetryModule,
     CommandsModule,
     DashboardModule,
+    SettingsModule,
     IotModule
   ]
 })

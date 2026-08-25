@@ -6,6 +6,7 @@ import { costFromKwh, formatKwh, formatPower, formatTzs } from '../lib/format';
 type HistoryPageProps = {
   units: AcUnit[];
   api: <T>(path: string, options?: RequestInit) => Promise<T>;
+  tariffTzsPerKwh: number;
 };
 
 const PAGE_SIZE = 10;
@@ -25,7 +26,7 @@ function StatePill({ state }: { state: TelemetryRecord['powerState'] }) {
   return <span className={`history-state history-state-${state.toLowerCase()}`}>{state}</span>;
 }
 
-export function HistoryPage({ units, api }: HistoryPageProps) {
+export function HistoryPage({ units, api, tariffTzsPerKwh }: HistoryPageProps) {
   const [unitId, setUnitId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -175,7 +176,7 @@ export function HistoryPage({ units, api }: HistoryPageProps) {
                     <td>{value(row.current, ' A')}</td>
                     <td>{formatPower(row.activePowerW)}</td>
                     <td>{formatKwh(row.energyKwh)}</td>
-                    <td>{formatTzs(costFromKwh(row.energyKwh))}</td>
+                    <td>{formatTzs(costFromKwh(row.energyKwh, tariffTzsPerKwh))}</td>
                     <td>{value(row.errorCode)}</td>
                     <td>{value(row.rssi, ' dBm')}</td>
                   </tr>

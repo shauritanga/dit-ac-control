@@ -163,3 +163,9 @@ model Alert {
   resolved  Boolean  @default(false)
   createdAt DateTime @default(now())
 }
+
+model WorkspaceSettings {
+  id              String   @id
+  tariffTzsPerKwh Decimal  @default(750) @db.Decimal(12, 2)
+  updatedAt       DateTime @updatedAt
+}

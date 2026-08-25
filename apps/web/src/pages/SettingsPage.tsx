@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  Banknote,
   Bell,
   Check,
   Monitor,
@@ -12,8 +13,14 @@ import {
   DEFAULT_PREFERENCES,
   usePreferences,
 } from '../context/PreferencesContext';
+import { formatTzs } from '../lib/format';
+import type { WorkspaceSettings } from '../types';
 
 type SettingsPageProps = {
+  api: <T>(path: string, options?: RequestInit) => Promise<T>;
+  role: string;
+  tariffTzsPerKwh: number;
+  onTariffChange: (value: number) => void;
   onSaved?: (message: string) => void;
 };
 
@@ -47,17 +54,30 @@ const THEME_OPTIONS: Array<{
   },
 ];
 
-export function SettingsPage({ onSaved }: SettingsPageProps) {
+export function SettingsPage({
+  api,
+  role,
+  tariffTzsPerKwh,
+  onTariffChange,
+  onSaved,
+}: SettingsPageProps) {
   const { mode, setMode, theme } = useTheme();
   const { preferences, setPreference } = usePreferences();
   const [savedFlash, setSavedFlash] = useState('');
   const [minInput, setMinInput] = useState(String(preferences.powerThresholdMinW));
   const [maxInput, setMaxInput] = useState(String(preferences.powerThresholdMaxW));
+  const [tariffInput, setTariffInput] = useState(String(tariffTzsPerKwh));
+  const [tariffSaving, setTariffSaving] = useState(false);
+  const isAdmin = role === 'ADMIN';
 
   useEffect(() => {
     setMinInput(String(preferences.powerThresholdMinW));
     setMaxInput(String(preferences.powerThresholdMaxW));
   }, [preferences.powerThresholdMinW, preferences.powerThresholdMaxW]);
+
+  useEffect(() => {
+    setTariffInput(String(tariffTzsPerKwh));
+  }, [tariffTzsPerKwh]);
 
   useEffect(() => {
     if (!savedFlash) return;
@@ -99,13 +119,41 @@ export function SettingsPage({ onSaved }: SettingsPageProps) {
     flash(`Maximum power: ${clamped} W`);
   }
 
+  async function commitTariff(raw: string) {
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) {
+      setTariffInput(String(tariffTzsPerKwh));
+      return;
+    }
+    const clamped = Math.min(100000, Math.max(0, Math.round(n * 100) / 100));
+    if (clamped === tariffTzsPerKwh) {
+      setTariffInput(String(clamped));
+      return;
+    }
+    setTariffSaving(true);
+    try {
+      const saved = await api<WorkspaceSettings>('/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ tariffTzsPerKwh: clamped }),
+      });
+      onTariffChange(saved.tariffTzsPerKwh);
+      setTariffInput(String(saved.tariffTzsPerKwh));
+      flash(`Energy tariff: ${formatTzs(saved.tariffTzsPerKwh)} / kWh`);
+    } catch (err) {
+      setTariffInput(String(tariffTzsPerKwh));
+      flash(err instanceof Error ? err.message : 'Unable to save energy tariff.');
+    } finally {
+      setTariffSaving(false);
+    }
+  }
+
   return (
     <div className="settings-page">
       <header className="settings-hero">
         <div className="settings-hero-copy">
           <p className="eyebrow">Workspace</p>
           <h2>Settings</h2>
-          <p>Theme, alerts, and power threshold for this browser. Saved on this device only.</p>
+          <p>Theme and alerts stay on this device. Energy tariff is shared across the system.</p>
         </div>
         {savedFlash ? (
           <div className="settings-saved" role="status">
@@ -292,6 +340,53 @@ export function SettingsPage({ onSaved }: SettingsPageProps) {
           Example: min 200 W, max 1500 W. Lab AC reports 50 W while ON → possible fault. Reports
           1800 W → high load alert on Overview and Alerts.
         </p>
+      </section>
+
+      <section className="settings-card" aria-labelledby="tariff-heading">
+        <div className="settings-card-header settings-card-header-row">
+          <div className="settings-card-title-row">
+            <span className="settings-section-icon" aria-hidden="true">
+              <Banknote size={18} />
+            </span>
+            <div>
+              <h3 id="tariff-heading">Energy tariff</h3>
+              <p>
+                Cost per kilowatt-hour used on Reports and History for every unit. Administrators
+                can change this rate for the whole system.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="power-threshold-pair">
+          <label className="power-field">
+            <span className="power-field-label">Cost per 1 kWh</span>
+            <span className="power-field-hint">
+              {isAdmin
+                ? 'Applies immediately to energy cost estimates.'
+                : 'Only an administrator can change this rate.'}
+            </span>
+            <span className="power-field-input">
+              <input
+                type="number"
+                min={0}
+                max={100000}
+                step={1}
+                value={tariffInput}
+                disabled={!isAdmin || tariffSaving}
+                onChange={(e) => setTariffInput(e.target.value)}
+                onBlur={() => {
+                  if (isAdmin) void commitTariff(tariffInput);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                }}
+                aria-label="Cost per kilowatt-hour in Tanzanian shillings"
+              />
+              <span>TZS</span>
+            </span>
+          </label>
+        </div>
       </section>
     </div>
   );

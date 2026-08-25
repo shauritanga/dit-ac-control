@@ -12,7 +12,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { apiRequest, SOCKET_URL } from './lib/api';
-import { formatRelativeTime, severityTone } from './lib/format';
+import { formatRelativeTime, severityTone, TARIFF_TZS_PER_KWH } from './lib/format';
 import type {
   AcUnit,
   AppNotification,
@@ -20,6 +20,7 @@ import type {
   OverviewData,
   Summary,
   UserProfile,
+  WorkspaceSettings,
 } from './types';
 import type { WorkspacePreferences } from './context/PreferencesContext';
 
@@ -216,6 +217,7 @@ function AuthenticatedApp({
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [toast, setToast] = useState('');
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
+  const [tariffTzsPerKwh, setTariffTzsPerKwh] = useState(TARIFF_TZS_PER_KWH);
   const userId = authUser?.id ?? null;
 
   const user = useMemo(() => toUserProfile(authUser), [authUser]);
@@ -235,6 +237,18 @@ function AuthenticatedApp({
         setApiOnline(false);
       }
     })();
+  }, [api]);
+
+  useEffect(() => {
+    void api<WorkspaceSettings>('/settings')
+      .then((settings) => {
+        if (Number.isFinite(settings.tariffTzsPerKwh)) {
+          setTariffTzsPerKwh(settings.tariffTzsPerKwh);
+        }
+      })
+      .catch(() => {
+        /* keep default until settings are reachable */
+      });
   }, [api]);
 
   const loadOverview = useCallback(async () => {
@@ -472,7 +486,9 @@ function AuthenticatedApp({
           />
         )}
 
-        {activeNav === 'history' && <HistoryPage units={units} api={api} />}
+        {activeNav === 'history' && (
+          <HistoryPage units={units} api={api} tariffTzsPerKwh={tariffTzsPerKwh} />
+        )}
 
         {activeNav === 'buildings' && overview && (
           <div className="page-shell">
@@ -534,7 +550,13 @@ function AuthenticatedApp({
         )}
 
         {activeNav === 'settings' && (
-          <SettingsPage onSaved={(message) => setToast(message)} />
+          <SettingsPage
+            api={api}
+            role={authUser?.role ?? ''}
+            tariffTzsPerKwh={tariffTzsPerKwh}
+            onTariffChange={setTariffTzsPerKwh}
+            onSaved={(message) => setToast(message)}
+          />
         )}
       </AppShell>
 
