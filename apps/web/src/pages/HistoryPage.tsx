@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Filter, History } from 'lucide-react';
 import type { AcUnit, TelemetryHistoryResponse, TelemetryRecord } from '../types';
-import { formatPower, formatTemp } from '../lib/format';
+import { costFromKwh, formatKwh, formatPower, formatTzs } from '../lib/format';
 
 type HistoryPageProps = {
   units: AcUnit[];
@@ -135,15 +135,51 @@ export function HistoryPage({ units, api }: HistoryPageProps) {
         {error ? <div className="error-box" role="alert">{error}</div> : (
           <div className="history-table-wrap">
             <table className="history-table">
-              <thead><tr>
-                <th>Received at</th><th>Power</th><th>Mode</th><th>Ambient</th><th>Coil</th><th>Humidity</th><th>Setpoint</th><th>Fan</th><th>Swing</th><th>Voltage</th><th>Current</th><th>Active power</th><th>Energy</th><th>Error</th><th>RSSI</th>
-              </tr></thead>
+              <thead>
+                <tr>
+                  <th>Received at</th>
+                  <th>Power</th>
+                  <th>Mode</th>
+                  <th>Voltage</th>
+                  <th>Current</th>
+                  <th>Active power</th>
+                  <th>Energy</th>
+                  <th>Cost</th>
+                  <th>Error</th>
+                  <th>RSSI</th>
+                </tr>
+              </thead>
               <tbody>
-                {loading && !data ? <tr><td colSpan={15} className="history-message">Loading device history…</td></tr> : null}
-                {!loading && data?.items.length === 0 ? <tr><td colSpan={15} className="history-message">No telemetry readings found.</td></tr> : null}
-                {data?.items.map((row) => <tr key={row.id}>
-                  <td className="history-time">{formatDate(row.recordedAt)}</td><td><StatePill state={row.powerState} /></td><td>{value(row.mode)}</td><td>{formatTemp(row.ambientTempC)}</td><td>{formatTemp(row.coilTempC)}</td><td>{value(row.humidityPct, '%')}</td><td>{value(row.setpointC, '°C')}</td><td>{value(row.fanSpeed)}</td><td>{row.swingEnabled == null ? '—' : row.swingEnabled ? 'On' : 'Off'}</td><td>{value(row.voltage, ' V')}</td><td>{value(row.current, ' A')}</td><td>{formatPower(row.activePowerW)}</td><td>{value(row.energyKwh, ' kWh')}</td><td>{value(row.errorCode)}</td><td>{value(row.rssi, ' dBm')}</td>
-                </tr>)}
+                {loading && !data ? (
+                  <tr>
+                    <td colSpan={10} className="history-message">
+                      Loading device history…
+                    </td>
+                  </tr>
+                ) : null}
+                {!loading && data?.items.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="history-message">
+                      No telemetry readings found.
+                    </td>
+                  </tr>
+                ) : null}
+                {data?.items.map((row) => (
+                  <tr key={row.id}>
+                    <td className="history-time">{formatDate(row.recordedAt)}</td>
+                    <td>
+                      <StatePill state={row.powerState} />
+                    </td>
+                    <td>{value(row.mode)}</td>
+                    <td>{value(row.voltage, ' V')}</td>
+                    <td>{value(row.current, ' A')}</td>
+                    <td>{formatPower(row.activePowerW)}</td>
+                    <td>{formatKwh(row.energyKwh)}</td>
+                    <td>{formatTzs(costFromKwh(row.energyKwh))}</td>
+                    <td>{value(row.errorCode)}</td>
+                    <td>{value(row.rssi, ' dBm')}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

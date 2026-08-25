@@ -29,6 +29,14 @@ export function formatTzs(value: number | null | undefined) {
   return `TZS ${Math.round(value).toLocaleString('en-US')}`;
 }
 
+/** Estimated TANESCO-style tariff used on reports and history. */
+export const TARIFF_TZS_PER_KWH = 750;
+
+export function costFromKwh(energyKwh: number | null | undefined) {
+  if (energyKwh == null || Number.isNaN(energyKwh)) return null;
+  return Math.round(energyKwh * TARIFF_TZS_PER_KWH);
+}
+
 export function formatPercent(value: number | null | undefined) {
   if (value == null || Number.isNaN(value)) return '—';
   return `${formatNumber(value, value % 1 === 0 ? 0 : 1)}%`;

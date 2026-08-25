@@ -83,7 +83,7 @@
 .history-table-panel { overflow: hidden; }
 .history-table-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .history-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
-.history-table { width: 100%; min-width: 1520px; border-collapse: collapse; font-size: 13px; }
+.history-table { width: 100%; min-width: 1080px; border-collapse: collapse; font-size: 13px; }
 .history-table th { padding: 11px 12px; color: var(--text-muted); background: var(--bg-muted); text-align: left; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
 .history-table td { padding: 12px; border-top: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
 .history-table tbody tr:hover { background: var(--bg-hover); }
