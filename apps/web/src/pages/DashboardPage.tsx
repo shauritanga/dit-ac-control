@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import {
   AlertTriangle,
   Gauge,
@@ -7,16 +6,8 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import type { AcUnit, Summary } from '../types';
+import type { AcUnit, OverviewDailyEnergyTrend, Summary } from '../types';
+import { DailyEnergyChart, energyColorsForTheme } from '../components/DailyEnergyChart';
 import { useTheme } from '../context/ThemeContext';
 import { formatPower, formatTemp } from '../lib/format';
 
@@ -32,6 +23,7 @@ type DashboardPageProps = {
   notice: string;
   error: string;
   onIssue: (type: string, payload: Record<string, unknown>) => void;
+  dailyEnergyTrend: OverviewDailyEnergyTrend;
 };
 
 export function DashboardPage({
@@ -46,29 +38,16 @@ export function DashboardPage({
   notice,
   error,
   onIssue,
+  dailyEnergyTrend,
 }: DashboardPageProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-
-  const chartData = useMemo(
-    () =>
-      [...(selected?.telemetry ?? [])].reverse().map((row, index) => ({
-        name: `${index + 1}`,
-        temp: row.ambientTempC ?? 0,
-        power: row.activePowerW ?? 0,
-      })),
-    [selected],
-  );
-
-  const gridStroke = isDark ? '#2a3548' : '#e8ecf1';
-  const axisStroke = isDark ? '#8b9bb3' : '#64748b';
-  const tooltipStyle = {
-    background: isDark ? '#121a2a' : '#fff',
-    border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-    borderRadius: 8,
-    color: isDark ? '#e8eef7' : '#0f172a',
-    fontSize: 12,
-  };
+  const energyColors = energyColorsForTheme(isDark);
+  const selectedTrendIndex = selected
+    ? dailyEnergyTrend.units.findIndex((unit) => unit.id === selected.id)
+    : -1;
+  const selectedColor =
+    energyColors[(selectedTrendIndex >= 0 ? selectedTrendIndex : 0) % energyColors.length];
 
   return (
     <div className="ops">
@@ -235,30 +214,26 @@ export function DashboardPage({
                 </section>
 
                 <section className="ops-section ops-chart-section">
-                  <h3>Trend</h3>
+                  <div className="ops-chart-head">
+                    <div>
+                      <h3>Daily energy</h3>
+                      <p>Consumption · last 7 days</p>
+                    </div>
+                    <span className="ov-legend">
+                      <span>
+                        <i
+                          className="ov-legend-swatch ov-legend-line"
+                          style={{ background: selectedColor }}
+                        />
+                        {selected.name}
+                      </span>
+                    </span>
+                  </div>
                   <div className="ops-chart">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-                        <XAxis dataKey="name" stroke={axisStroke} fontSize={11} />
-                        <YAxis stroke={axisStroke} fontSize={11} width={40} />
-                        <Tooltip contentStyle={tooltipStyle} />
-                        <Area
-                          type="monotone"
-                          dataKey="power"
-                          name="Power"
-                          stroke={isDark ? '#38bdf8' : '#0f766e'}
-                          fill={isDark ? 'rgba(56,189,248,0.12)' : '#ccfbf1'}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="temp"
-                          name="Temp"
-                          stroke={isDark ? '#34d399' : '#059669'}
-                          fill={isDark ? 'rgba(52,211,153,0.1)' : '#d1fae5'}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    <DailyEnergyChart
+                      trend={dailyEnergyTrend}
+                      unitId={selected.id}
+                    />
                   </div>
                 </section>
 

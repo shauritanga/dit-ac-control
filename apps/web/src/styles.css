@@ -2438,12 +2438,38 @@ h3 {
   min-height: 0;
 }
 
+.ops-chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.ops-chart-head h3 {
+  margin: 0;
+}
+
+.ops-chart-head p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-muted);
+}
+
 .ops-chart {
-  height: 220px;
-  background: var(--bg-muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 10px 8px 4px;
+  height: 260px;
+  min-height: 260px;
+  width: 100%;
+}
+
+.ops-chart .ov-empty {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  margin: 0;
 }
 
 .ops-alerts {

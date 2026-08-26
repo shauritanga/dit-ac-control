@@ -483,6 +483,9 @@ function AuthenticatedApp({
             notice={notice}
             error={error}
             onIssue={issue}
+            dailyEnergyTrend={
+              overview?.dailyEnergyTrend ?? { units: [], points: [] }
+            }
           />
         )}
 

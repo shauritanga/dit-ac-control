@@ -8,46 +8,16 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { DailyEnergyChart, energyColorsForTheme } from '../components/DailyEnergyChart';
 import type { OverviewData } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import {
-  formatKwh,
   formatPercent,
   formatPower,
   formatRelativeTime,
   formatTemp,
   severityTone,
 } from '../lib/format';
-
-const ENERGY_COLORS_LIGHT = [
-  '#0f766e',
-  '#2563eb',
-  '#d97706',
-  '#7c3aed',
-  '#db2777',
-  '#0891b2',
-  '#65a30d',
-  '#ea580c',
-];
-const ENERGY_COLORS_DARK = [
-  '#2dd4bf',
-  '#60a5fa',
-  '#fbbf24',
-  '#a78bfa',
-  '#f472b6',
-  '#22d3ee',
-  '#a3e635',
-  '#fb923c',
-];
 
 type OverviewPageProps = {
   data: OverviewData | null;
@@ -97,16 +67,7 @@ export function OverviewPage({
 
   const { summary } = data;
   const energyTrend = data.dailyEnergyTrend ?? { units: [], points: [] };
-  const energyColors = isDark ? ENERGY_COLORS_DARK : ENERGY_COLORS_LIGHT;
-  const gridStroke = isDark ? '#2a3548' : '#e8ecf1';
-  const axisStroke = isDark ? '#8b9bb3' : '#64748b';
-  const tooltipStyle = {
-    background: isDark ? '#121a2a' : '#fff',
-    border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-    borderRadius: 8,
-    color: isDark ? '#e8eef7' : '#0f172a',
-    fontSize: 12,
-  };
+  const energyColors = energyColorsForTheme(isDark);
 
   const healthTone =
     (summary.onlinePct ?? 0) >= 90 ? 'good' : (summary.onlinePct ?? 0) >= 70 ? 'watch' : 'bad';
@@ -273,67 +234,9 @@ export function OverviewPage({
                 </div>
               ) : null}
             </div>
-            {energyTrend.points.length === 0 ||
-            energyTrend.points.every((p) => p.totalKwh === 0) ? (
-              <p className="ov-empty">No energy data in the last 7 days.</p>
-            ) : (
-              <div className="ov-chart">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={energyTrend.points.map((point) => ({
-                      label: point.label,
-                      totalKwh: point.totalKwh,
-                      ...point.values,
-                    }))}
-                    margin={{ top: 10, right: 12, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-                    <XAxis dataKey="label" stroke={axisStroke} fontSize={11} />
-                    <YAxis
-                      stroke={axisStroke}
-                      fontSize={11}
-                      width={40}
-                      tickFormatter={(value: number) =>
-                        Number(value) >= 10 || Number.isInteger(value)
-                          ? `${Math.round(value)}`
-                          : value.toFixed(1)
-                      }
-                    />
-                    <Tooltip
-                      contentStyle={tooltipStyle}
-                      formatter={(value, name) => [
-                        formatKwh(typeof value === 'number' ? value : Number(value)),
-                        String(name),
-                      ]}
-                      labelFormatter={(label, payload) => {
-                        const total = payload?.[0]?.payload?.totalKwh as
-                          | number
-                          | undefined;
-                        return total != null
-                          ? `${label} · ${formatKwh(total)} total`
-                          : String(label);
-                      }}
-                    />
-                    {energyTrend.units.map((unit, i) => {
-                      const color = energyColors[i % energyColors.length];
-                      return (
-                        <Line
-                          key={unit.id}
-                          type="monotone"
-                          dataKey={unit.id}
-                          name={unit.name}
-                          stroke={color}
-                          strokeWidth={2}
-                          dot={{ r: 3.5, fill: color, strokeWidth: 0 }}
-                          activeDot={{ r: 5, fill: color, strokeWidth: 0 }}
-                          isAnimationActive={false}
-                        />
-                      );
-                    })}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+            <div className="ov-chart">
+              <DailyEnergyChart trend={energyTrend} />
+            </div>
           </article>
 
           <article className="ov-card">
