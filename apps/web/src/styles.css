@@ -1986,6 +1986,12 @@ h3 {
   display: inline-block;
 }
 
+.ov-legend-swatch.ov-legend-line {
+  width: 14px;
+  height: 2.5px;
+  border-radius: 999px;
+}
+
 .ov-legend-swatch.power { background: #0f766e; }
 .ov-legend-swatch.temp { background: #059669; }
 [data-theme='dark'] .ov-legend-swatch.power { background: #38bdf8; }

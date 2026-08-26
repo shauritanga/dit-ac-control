@@ -9,9 +9,9 @@ import {
   WifiOff,
 } from 'lucide-react';
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -262,7 +262,7 @@ export function OverviewPage({
                   {energyTrend.units.map((unit, i) => (
                     <span key={unit.id}>
                       <i
-                        className="ov-legend-swatch"
+                        className="ov-legend-swatch ov-legend-line"
                         style={{
                           background: energyColors[i % energyColors.length],
                         }}
@@ -279,14 +279,13 @@ export function OverviewPage({
             ) : (
               <div className="ov-chart">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
+                  <LineChart
                     data={energyTrend.points.map((point) => ({
                       label: point.label,
                       totalKwh: point.totalKwh,
                       ...point.values,
                     }))}
-                    margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-                    barCategoryGap={18}
+                    margin={{ top: 10, right: 12, left: 0, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
                     <XAxis dataKey="label" stroke={axisStroke} fontSize={11} />
@@ -315,23 +314,23 @@ export function OverviewPage({
                           : String(label);
                       }}
                     />
-                    {energyTrend.units.map((unit, i) => (
-                      <Bar
-                        key={unit.id}
-                        dataKey={unit.id}
-                        name={unit.name}
-                        stackId="energy"
-                        fill={energyColors[i % energyColors.length]}
-                        radius={
-                          i === energyTrend.units.length - 1
-                            ? [6, 6, 0, 0]
-                            : [0, 0, 0, 0]
-                        }
-                        maxBarSize={48}
-                        isAnimationActive={false}
-                      />
-                    ))}
-                  </BarChart>
+                    {energyTrend.units.map((unit, i) => {
+                      const color = energyColors[i % energyColors.length];
+                      return (
+                        <Line
+                          key={unit.id}
+                          type="monotone"
+                          dataKey={unit.id}
+                          name={unit.name}
+                          stroke={color}
+                          strokeWidth={2}
+                          dot={{ r: 3.5, fill: color, strokeWidth: 0 }}
+                          activeDot={{ r: 5, fill: color, strokeWidth: 0 }}
+                          isAnimationActive={false}
+                        />
+                      );
+                    })}
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
             )}
