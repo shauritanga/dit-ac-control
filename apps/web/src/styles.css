@@ -1965,9 +1965,12 @@ h3 {
 
 .ov-legend {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 12px;
   font-size: 11px;
   color: var(--text-muted);
+  max-width: min(100%, 22rem);
 }
 
 .ov-legend span {

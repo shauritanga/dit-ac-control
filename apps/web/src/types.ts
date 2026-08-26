@@ -139,12 +139,21 @@ export type OverviewActivity = {
   room: string;
 };
 
-export type OverviewLoadPoint = {
-  time: string;
+export type OverviewDailyEnergyUnit = {
+  id: string;
+  name: string;
+};
+
+export type OverviewDailyEnergyPoint = {
+  date: string;
   label: string;
-  powerW: number;
-  tempC: number | null;
-  humidityPct: number | null;
+  totalKwh: number;
+  values: Record<string, number>;
+};
+
+export type OverviewDailyEnergyTrend = {
+  units: OverviewDailyEnergyUnit[];
+  points: OverviewDailyEnergyPoint[];
 };
 
 export type OverviewDevice = {
@@ -174,7 +183,7 @@ export type OverviewData = {
   recentAlerts: OverviewAlert[];
   recentActivity: OverviewActivity[];
   recentCommands: OverviewCommand[];
-  loadTrend: OverviewLoadPoint[];
+  dailyEnergyTrend: OverviewDailyEnergyTrend;
   deviceHealth: OverviewDevice[];
 };
 

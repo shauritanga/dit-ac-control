@@ -9,8 +9,8 @@ import {
   WifiOff,
 } from 'lucide-react';
 import {
-  Area,
-  AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   ResponsiveContainer,
   Tooltip,
@@ -20,12 +20,34 @@ import {
 import type { OverviewData } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import {
+  formatKwh,
   formatPercent,
   formatPower,
   formatRelativeTime,
   formatTemp,
   severityTone,
 } from '../lib/format';
+
+const ENERGY_COLORS_LIGHT = [
+  '#0f766e',
+  '#2563eb',
+  '#d97706',
+  '#7c3aed',
+  '#db2777',
+  '#0891b2',
+  '#65a30d',
+  '#ea580c',
+];
+const ENERGY_COLORS_DARK = [
+  '#2dd4bf',
+  '#60a5fa',
+  '#fbbf24',
+  '#a78bfa',
+  '#f472b6',
+  '#22d3ee',
+  '#a3e635',
+  '#fb923c',
+];
 
 type OverviewPageProps = {
   data: OverviewData | null;
@@ -74,6 +96,8 @@ export function OverviewPage({
   if (!data) return null;
 
   const { summary } = data;
+  const energyTrend = data.dailyEnergyTrend ?? { units: [], points: [] };
+  const energyColors = isDark ? ENERGY_COLORS_DARK : ENERGY_COLORS_LIGHT;
   const gridStroke = isDark ? '#2a3548' : '#e8ecf1';
   const axisStroke = isDark ? '#8b9bb3' : '#64748b';
   const tooltipStyle = {
@@ -230,54 +254,84 @@ export function OverviewPage({
           <article className="ov-card ov-card-fill">
             <div className="ov-card-head">
               <div>
-                <h2>Load & temperature</h2>
-                <p>Hourly average from fleet telemetry · last 24 hours</p>
+                <h2>Daily energy</h2>
+                <p>Consumption for all AC units · last 7 days</p>
               </div>
-              <div className="ov-legend">
-                <span>
-                  <i className="ov-legend-swatch power" /> Power
-                </span>
-                <span>
-                  <i className="ov-legend-swatch temp" /> Temp
-                </span>
-              </div>
+              {energyTrend.units.length > 0 ? (
+                <div className="ov-legend">
+                  {energyTrend.units.map((unit, i) => (
+                    <span key={unit.id}>
+                      <i
+                        className="ov-legend-swatch"
+                        style={{
+                          background: energyColors[i % energyColors.length],
+                        }}
+                      />
+                      {unit.name}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
-            {data.loadTrend.length === 0 ? (
-              <p className="ov-empty">No telemetry in the last 24 hours.</p>
+            {energyTrend.points.length === 0 ||
+            energyTrend.points.every((p) => p.totalKwh === 0) ? (
+              <p className="ov-empty">No energy data in the last 7 days.</p>
             ) : (
               <div className="ov-chart">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.loadTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <BarChart
+                    data={energyTrend.points.map((point) => ({
+                      label: point.label,
+                      totalKwh: point.totalKwh,
+                      ...point.values,
+                    }))}
+                    margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                    barCategoryGap={18}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-                    <XAxis dataKey="label" stroke={axisStroke} fontSize={11} minTickGap={28} />
-                    <YAxis yAxisId="power" stroke={axisStroke} fontSize={11} width={44} />
+                    <XAxis dataKey="label" stroke={axisStroke} fontSize={11} />
                     <YAxis
-                      yAxisId="temp"
-                      orientation="right"
                       stroke={axisStroke}
                       fontSize={11}
-                      width={36}
+                      width={40}
+                      tickFormatter={(value: number) =>
+                        Number(value) >= 10 || Number.isInteger(value)
+                          ? `${Math.round(value)}`
+                          : value.toFixed(1)
+                      }
                     />
-                    <Tooltip contentStyle={tooltipStyle} />
-                    <Area
-                      yAxisId="power"
-                      type="monotone"
-                      dataKey="powerW"
-                      name="Power (W)"
-                      stroke={isDark ? '#38bdf8' : '#0f766e'}
-                      fill={isDark ? 'rgba(56,189,248,0.12)' : '#ccfbf1'}
-                      strokeWidth={2}
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      formatter={(value, name) => [
+                        formatKwh(typeof value === 'number' ? value : Number(value)),
+                        String(name),
+                      ]}
+                      labelFormatter={(label, payload) => {
+                        const total = payload?.[0]?.payload?.totalKwh as
+                          | number
+                          | undefined;
+                        return total != null
+                          ? `${label} · ${formatKwh(total)} total`
+                          : String(label);
+                      }}
                     />
-                    <Area
-                      yAxisId="temp"
-                      type="monotone"
-                      dataKey="tempC"
-                      name="Temp (°C)"
-                      stroke={isDark ? '#34d399' : '#059669'}
-                      fill={isDark ? 'rgba(52,211,153,0.08)' : '#d1fae5'}
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
+                    {energyTrend.units.map((unit, i) => (
+                      <Bar
+                        key={unit.id}
+                        dataKey={unit.id}
+                        name={unit.name}
+                        stackId="energy"
+                        fill={energyColors[i % energyColors.length]}
+                        radius={
+                          i === energyTrend.units.length - 1
+                            ? [6, 6, 0, 0]
+                            : [0, 0, 0, 0]
+                        }
+                        maxBarSize={48}
+                        isAnimationActive={false}
+                      />
+                    ))}
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             )}

@@ -8,6 +8,7 @@ export type EnergyPeriod = 'today' | 'week' | 'month';
 const HIGH_POWER_W = 1500;
 const TZ = 'Africa/Dar_es_Salaam';
 const ONLINE_MS = 15 * 60 * 1000;
+const ENERGY_TREND_DAYS = 7;
 
 @Injectable()
 export class DashboardService {
@@ -23,6 +24,8 @@ export class DashboardService {
 
   async overview() {
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const { y, m, d } = zonedYmd(new Date());
+    const trendFrom = eatMidnight(y, m, d - (ENERGY_TREND_DAYS - 1));
     const offlineThreshold = new Date(Date.now() - 15 * 60 * 1000);
     const isOnline = (lastSeenAt: Date | null | undefined) =>
       Boolean(lastSeenAt && lastSeenAt >= offlineThreshold);
@@ -36,7 +39,7 @@ export class DashboardService {
       commandStatusGroups,
       devices,
       buildings,
-      telemetry24h,
+      telemetryRecent,
     ] = await Promise.all([
       this.prisma.acUnit.findMany({
         include: {
@@ -137,13 +140,12 @@ export class DashboardService {
         orderBy: { name: 'asc' },
       }),
       this.prisma.telemetry.findMany({
-        where: { recordedAt: { gte: since24h } },
+        where: { recordedAt: { gte: trendFrom } },
         orderBy: { recordedAt: 'asc' },
         select: {
+          acUnitId: true,
           recordedAt: true,
           activePowerW: true,
-          ambientTempC: true,
-          humidityPct: true,
           energyKwh: true,
         },
       }),
@@ -298,9 +300,30 @@ export class DashboardService {
       .sort((a, b) => b.activePowerW - a.activePowerW)
       .slice(0, 8);
 
-    const loadTrend = this.bucketTelemetry(telemetry24h);
-
+    const telemetry24h = telemetryRecent.filter((row) => row.recordedAt >= since24h);
     const energyKwh24h = this.estimateEnergyKwh(telemetry24h);
+
+    const baselines = await Promise.all(
+      units.map((unit) =>
+        this.prisma.telemetry.findFirst({
+          where: {
+            acUnitId: unit.id,
+            recordedAt: { lt: trendFrom },
+            energyKwh: { not: null },
+          },
+          orderBy: { recordedAt: 'desc' },
+          select: { energyKwh: true },
+        }),
+      ),
+    );
+    const baselineByUnit = new Map(
+      units.map((unit, index) => [unit.id, baselines[index]?.energyKwh ?? null]),
+    );
+    const dailyEnergyTrend = this.buildDailyEnergyTrend(
+      units.map((unit) => ({ id: unit.id, name: unit.name })),
+      telemetryRecent,
+      baselineByUnit,
+    );
 
     const deviceHealth = devices.map((device) => ({
       id: device.id,
@@ -373,7 +396,7 @@ export class DashboardService {
         acUnit: cmd.acUnit,
         issuedBy: cmd.issuedBy,
       })),
-      loadTrend,
+      dailyEnergyTrend,
       deviceHealth,
     };
   }
@@ -503,65 +526,82 @@ export class DashboardService {
       .sort((a, b) => b.count - a.count);
   }
 
-  private bucketTelemetry(
-    rows: Array<{
+  private buildDailyEnergyTrend(
+    units: Array<{ id: string; name: string }>,
+    samples: Array<{
+      acUnitId: string;
       recordedAt: Date;
       activePowerW: number | null;
-      ambientTempC: number | null;
-      humidityPct: number | null;
+      energyKwh: number | null;
     }>,
+    baselines: Map<string, number | null>,
   ) {
-    const buckets = new Map<
-      string,
-      { powerSum: number; powerN: number; tempSum: number; tempN: number; humiditySum: number; humidityN: number }
-    >();
-
-    for (const row of rows) {
-      const hour = new Date(row.recordedAt);
-      hour.setMinutes(0, 0, 0);
-      const key = hour.toISOString();
-      const bucket = buckets.get(key) ?? {
-        powerSum: 0,
-        powerN: 0,
-        tempSum: 0,
-        tempN: 0,
-        humiditySum: 0,
-        humidityN: 0,
-      };
-
-      if (typeof row.activePowerW === 'number') {
-        bucket.powerSum += row.activePowerW;
-        bucket.powerN += 1;
-      }
-      if (typeof row.ambientTempC === 'number') {
-        bucket.tempSum += row.ambientTempC;
-        bucket.tempN += 1;
-      }
-      if (typeof row.humidityPct === 'number') {
-        bucket.humiditySum += row.humidityPct;
-        bucket.humidityN += 1;
-      }
-      buckets.set(key, bucket);
+    const now = new Date();
+    const { y, m, d } = zonedYmd(now);
+    const byUnit = new Map<string, typeof samples>();
+    for (const row of samples) {
+      const list = byUnit.get(row.acUnitId) ?? [];
+      list.push(row);
+      byUnit.set(row.acUnitId, list);
     }
 
-    return [...buckets.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([time, bucket]) => ({
-        time,
-        label: new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        powerW:
-          bucket.powerN === 0
-            ? 0
-            : Math.round(bucket.powerSum / bucket.powerN),
-        tempC:
-          bucket.tempN === 0
-            ? null
-            : Math.round((bucket.tempSum / bucket.tempN) * 10) / 10,
-        humidityPct:
-          bucket.humidityN === 0
-            ? null
-            : Math.round((bucket.humiditySum / bucket.humidityN) * 10) / 10,
-      }));
+    const points = [];
+    for (let i = ENERGY_TREND_DAYS - 1; i >= 0; i--) {
+      const start = eatMidnight(y, m, d - i);
+      const end = eatMidnight(y, m, d - i + 1);
+      const ymd = zonedYmd(start);
+      const date = `${ymd.y}-${String(ymd.m).padStart(2, '0')}-${String(ymd.d).padStart(2, '0')}`;
+      const isToday = i === 0;
+      const label = isToday
+        ? 'Today'
+        : start.toLocaleDateString('en-GB', {
+            timeZone: TZ,
+            weekday: 'short',
+            day: 'numeric',
+          });
+
+      const values: Record<string, number> = {};
+      let totalKwh = 0;
+      for (const unit of units) {
+        const unitRows = byUnit.get(unit.id) ?? [];
+        const daySamples = unitRows.filter(
+          (row) => row.recordedAt >= start && row.recordedAt < end,
+        );
+        const earlierMeter = [...unitRows]
+          .reverse()
+          .find(
+            (row) =>
+              row.recordedAt < start && typeof row.energyKwh === 'number',
+          )?.energyKwh;
+        const baseline =
+          typeof earlierMeter === 'number'
+            ? earlierMeter
+            : (baselines.get(unit.id) ?? null);
+        const kwh = round2(
+          energyFromSamples(
+            daySamples,
+            baseline,
+            start,
+            isToday ? now : end,
+            now,
+          ),
+        );
+        values[unit.id] = kwh;
+        totalKwh += kwh;
+      }
+
+      points.push({
+        date,
+        label,
+        totalKwh: round2(totalKwh),
+        values,
+      });
+    }
+
+    return {
+      units,
+      points,
+    };
   }
 
   private estimateEnergyKwh(
