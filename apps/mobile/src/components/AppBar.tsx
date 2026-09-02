@@ -70,7 +70,7 @@ export function AppBar({
             <Pressable
               style={styles.avatar}
               onPress={() => router.push('/(app)/account')}
-              accessibilityLabel="Account"
+              accessibilityLabel="Profile"
             >
               <Text style={styles.avatarText}>{initials}</Text>
             </Pressable>

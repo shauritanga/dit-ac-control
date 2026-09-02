@@ -19,22 +19,12 @@ import {
   ErrorBanner,
   LoadingBlock,
   PrimaryButton,
-  SectionHeader,
-  StatusBadge,
   SuccessBanner,
 } from '../../../src/components/ui';
 import { useAuth } from '../../../src/context/AuthContext';
 import { useFacilityData } from '../../../src/context/DataContext';
-import {
-  formatHumidity,
-  formatRelativeTime,
-  formatTemp,
-  formatWatts,
-} from '../../../src/lib/format';
+import { formatRelativeTime, formatWatts } from '../../../src/lib/format';
 import { colors, radius, shadow, spacing, type } from '../../../src/theme/colors';
-
-const MODES = ['COOL', 'HEAT', 'DRY', 'FAN', 'AUTO'] as const;
-const FANS = ['AUTO', 'LOW', 'MEDIUM', 'HIGH'] as const;
 
 export default function UnitDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -53,7 +43,7 @@ export default function UnitDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -81,38 +71,35 @@ export default function UnitDetailScreen() {
     void load({ silent: Boolean(cached) });
   }, [id, token]);
 
-  async function runCommand(
-    type: string,
-    payload: Record<string, unknown>,
-    label: string,
-    confirm?: string,
-  ) {
+  async function runPowerCommand() {
     if (!token || !unit) return;
+    const nextPower = unit.powerState === 'ON' ? 'OFF' : 'ON';
+    const label = `Power ${nextPower === 'ON' ? 'on' : 'off'}`;
 
-    const execute = async () => {
-      setBusy(label);
-      setMessage('');
-      setError('');
-      try {
-        await issueCommand(token, unit.id, type, payload);
-        setMessage(`${label} queued for device check-in.`);
-        await load({ silent: true });
-        void refreshFleet({ silent: true });
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Command failed.');
-      } finally {
-        setBusy(null);
-      }
-    };
-
-    if (confirm) {
-      Alert.alert('Confirm command', confirm, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Send', style: 'destructive', onPress: () => void execute() },
-      ]);
-      return;
-    }
-    await execute();
+    Alert.alert('Confirm command', `Send POWER ${nextPower} to ${unit.name}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Send',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setBusy(true);
+            setMessage('');
+            setError('');
+            try {
+              await issueCommand(token, unit.id, 'POWER', { powerState: nextPower });
+              setMessage(`${label} queued for device check-in.`);
+              await load({ silent: true });
+              void refreshFleet({ silent: true });
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'Command failed.');
+            } finally {
+              setBusy(false);
+            }
+          })();
+        },
+      },
+    ]);
   }
 
   if (loading && !unit) {
@@ -162,133 +149,52 @@ export default function UnitDetailScreen() {
         <View style={styles.hero}>
           <View style={styles.heroTop}>
             <View style={{ flex: 1 }}>
+              <Text style={styles.eyebrow}>
+                {unit.assetTag} · {unit.room.code}
+              </Text>
               <Text style={styles.loc}>
-                {unit.room.floor.building.name} · {unit.room.name}
+                {unit.room.floor.building.name} · {unit.room.floor.name} ·{' '}
+                {unit.room.name}
               </Text>
               <Text style={styles.seen}>
                 Last seen {formatRelativeTime(unit.lastSeenAt ?? latest?.recordedAt)}
               </Text>
             </View>
-            <StatusBadge online={unit.online} />
+            <StatusPill online={unit.online} />
           </View>
         </View>
 
         <ErrorBanner message={error} />
         <SuccessBanner message={message} />
 
-        <SectionHeader
-          title="Latest reading"
-          actionLabel="View history"
-          onAction={() => router.push(`/(app)/unit/${unit.id}/history`)}
-        />
+        <Text style={styles.section}>Controls</Text>
+        <View style={styles.actions}>
+          <ActionButton
+            icon="power"
+            label={`Power ${nextPower === 'ON' ? 'on' : 'off'}`}
+            busy={busy}
+            onPress={() => void runPowerCommand()}
+          />
+        </View>
+
+        <Text style={styles.section}>Live readings</Text>
         <View style={styles.readings}>
-          <Reading label="Ambient" value={formatTemp(latest?.ambientTempC)} />
-          <Reading label="Humidity" value={formatHumidity(latest?.humidityPct)} />
-          <Reading label="Power" value={formatWatts(latest?.activePowerW)} />
           <Reading label="Setpoint" value={`${unit.setpointC}°C`} />
+          <Reading label="Power" value={formatWatts(latest?.activePowerW)} />
           <Reading label="Mode" value={unit.mode} />
           <Reading label="Fan" value={unit.fanSpeed} />
         </View>
 
-        <Text style={styles.section}>Power</Text>
-        <View style={styles.actions}>
-          <ActionButton
-            icon="power"
-            label={`Turn ${nextPower}`}
-            busy={busy === `Turn ${nextPower}`}
-            onPress={() =>
-              void runCommand(
-                'POWER',
-                { powerState: nextPower },
-                `Turn ${nextPower}`,
-                `Send POWER ${nextPower} to ${unit.name}?`,
-              )
-            }
-          />
-        </View>
-
-        <Text style={styles.section}>Setpoint</Text>
-        <View style={styles.actions}>
-          <ActionButton
-            icon="remove"
-            label="Cooler"
-            busy={busy === 'Cooler'}
-            onPress={() =>
-              void runCommand(
-                'SETPOINT',
-                { setpointC: Math.max(16, unit.setpointC - 1) },
-                'Cooler',
-              )
-            }
-          />
-          <ActionButton
-            icon="add"
-            label="Warmer"
-            busy={busy === 'Warmer'}
-            onPress={() =>
-              void runCommand(
-                'SETPOINT',
-                { setpointC: Math.min(30, unit.setpointC + 1) },
-                'Warmer',
-              )
-            }
-          />
-        </View>
-
-        <Text style={styles.section}>Mode</Text>
-        <View style={styles.chipRow}>
-          {MODES.map((mode) => (
-            <Pressable
-              key={mode}
-              style={[styles.chip, unit.mode === mode && styles.chipActive]}
-              disabled={Boolean(busy)}
-              onPress={() => void runCommand('MODE', { mode }, `Mode ${mode}`)}
-            >
-              <Text
-                style={[
-                  styles.chipText,
-                  unit.mode === mode && styles.chipTextActive,
-                ]}
-              >
-                {mode}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Text style={styles.section}>Fan speed</Text>
-        <View style={styles.chipRow}>
-          {FANS.map((fan) => (
-            <Pressable
-              key={fan}
-              style={[styles.chip, unit.fanSpeed === fan && styles.chipActive]}
-              disabled={Boolean(busy)}
-              onPress={() =>
-                void runCommand('FAN_SPEED', { fanSpeed: fan }, `Fan ${fan}`)
-              }
-            >
-              <Text
-                style={[
-                  styles.chipText,
-                  unit.fanSpeed === fan && styles.chipTextActive,
-                ]}
-              >
-                {fan}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        {(unit.alerts?.length ?? 0) > 0 ? (
-          <>
-            <Text style={styles.section}>Open alerts</Text>
-            <View style={styles.alertList}>
-              {unit.alerts.map((alert) => (
-                <AlertRow key={alert.id} alert={alert} />
-              ))}
-            </View>
-          </>
-        ) : null}
+        <Text style={styles.section}>Alerts on this unit</Text>
+        {(unit.alerts?.length ?? 0) === 0 ? (
+          <Text style={styles.emptyAlerts}>No unresolved alerts.</Text>
+        ) : (
+          <View style={styles.alertList}>
+            {unit.alerts.map((alert) => (
+              <AlertRow key={alert.id} alert={alert} />
+            ))}
+          </View>
+        )}
 
         {!unit.online ? (
           <View style={styles.offlineNote}>
@@ -299,6 +205,15 @@ export default function UnitDetailScreen() {
           </View>
         ) : null}
       </ScrollView>
+    </View>
+  );
+}
+
+function StatusPill({ online }: { online: boolean }) {
+  return (
+    <View style={[styles.statusPill, online ? styles.statusOnline : styles.statusOffline]}>
+      <View style={[styles.statusDot, online ? styles.dotOnline : styles.dotOffline]} />
+      <Text style={styles.statusText}>{online ? 'Online' : 'Offline'}</Text>
     </View>
   );
 }
@@ -356,7 +271,15 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'flex-start',
   },
+  eyebrow: {
+    color: colors.textMuted,
+    fontSize: type.micro,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
   loc: {
+    marginTop: 4,
     color: colors.text,
     fontSize: type.body,
     fontWeight: '700',
@@ -366,6 +289,28 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: type.caption,
     fontWeight: '600',
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+  },
+  statusOnline: { backgroundColor: colors.successSoft },
+  statusOffline: { backgroundColor: colors.surfaceMuted },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  dotOnline: { backgroundColor: colors.success },
+  dotOffline: { backgroundColor: colors.textMuted },
+  statusText: {
+    fontSize: type.micro,
+    fontWeight: '800',
+    color: colors.textSoft,
   },
   readings: {
     flexDirection: 'row',
@@ -424,30 +369,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: type.caption,
   },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  chipActive: {
-    backgroundColor: colors.brand,
-    borderColor: colors.brand,
-  },
-  chipText: {
-    fontWeight: '700',
+  emptyAlerts: {
+    color: colors.textMuted,
     fontSize: type.caption,
-    color: colors.textSoft,
-  },
-  chipTextActive: {
-    color: colors.white,
+    fontWeight: '600',
   },
   alertList: { gap: 10 },
   offlineNote: {

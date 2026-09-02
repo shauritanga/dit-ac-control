@@ -43,7 +43,7 @@ export default function AccountScreen() {
   }
 
   return (
-    <Screen title="Account" subtitle="Profile & session" showNotifications={false}>
+    <Screen title="Profile" subtitle="Account & session" showNotifications={false}>
       <Card style={styles.profile}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initials}</Text>

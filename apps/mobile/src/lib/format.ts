@@ -47,3 +47,26 @@ export function roleLabel(role: string): string {
     .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+export function formatKwh(value: number | null | undefined, digits = 2): string {
+  if (value == null || Number.isNaN(value)) return '—';
+  return `${value.toLocaleString(undefined, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })} kWh`;
+}
+
+export function formatTzs(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return '—';
+  return `TZS ${Math.round(value).toLocaleString('en-US')}`;
+}
+
+export const TARIFF_TZS_PER_KWH = 750;
+
+export function costFromKwh(
+  energyKwh: number | null | undefined,
+  tariffTzsPerKwh = TARIFF_TZS_PER_KWH,
+): number | null {
+  if (energyKwh == null || Number.isNaN(energyKwh)) return null;
+  return Math.round(energyKwh * tariffTzsPerKwh);
+}

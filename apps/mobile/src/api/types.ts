@@ -111,3 +111,37 @@ export type TelemetryHistoryResponse = {
   total: number;
   totalPages: number;
 };
+
+export type WorkspaceSettings = {
+  tariffTzsPerKwh: number;
+  updatedAt?: string;
+};
+
+export type EnergyPeriod = 'today' | 'week' | 'month';
+
+export type EnergyReportUnit = {
+  id: string;
+  name: string;
+  assetTag: string;
+  location: string;
+  building: string;
+  energyKwh: number;
+  costTzs: number;
+  status: 'Normal' | 'High';
+};
+
+export type EnergyReport = {
+  period: EnergyPeriod;
+  from: string;
+  to: string;
+  tariffTzsPerKwh: number;
+  totalEnergyKwh: number;
+  totalCostTzs: number;
+  highestUsage: {
+    id: string;
+    name: string;
+    assetTag: string;
+    energyKwh: number;
+  } | null;
+  units: EnergyReportUnit[];
+};

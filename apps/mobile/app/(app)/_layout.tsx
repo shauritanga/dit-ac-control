@@ -70,6 +70,19 @@ function AppTabs() {
         }}
       />
       <Tabs.Screen
+        name="history"
+        options={{
+          title: 'History',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'time' : 'time-outline'}
+              size={22}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="reports"
         options={{
           title: 'Reports',
@@ -85,7 +98,7 @@ function AppTabs() {
       <Tabs.Screen
         name="account"
         options={{
-          title: 'Account',
+          title: 'Profile',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'person' : 'person-outline'}
@@ -95,7 +108,7 @@ function AppTabs() {
           ),
         }}
       />
-      {/* Notifications only via app-bar bell — not a tab */}
+      {/* Hidden stack/detail routes — not tabs */}
       <Tabs.Screen
         name="alerts"
         options={{
@@ -105,6 +118,13 @@ function AppTabs() {
       />
       <Tabs.Screen
         name="unit/[id]"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="unit/[id]/history"
         options={{
           href: null,
           headerShown: false,

@@ -18,7 +18,7 @@ import {
 import { useFacilityData } from '../../src/context/DataContext';
 import { colors, radius, spacing, type } from '../../src/theme/colors';
 
-type Filter = 'all' | 'online' | 'offline' | 'on' | 'alerts';
+type Filter = 'all' | 'online' | 'offline' | 'on' | 'off';
 
 export default function UnitsScreen() {
   const router = useRouter();
@@ -34,7 +34,7 @@ export default function UnitsScreen() {
       if (filter === 'online' && !unit.online) return false;
       if (filter === 'offline' && unit.online) return false;
       if (filter === 'on' && unit.powerState !== 'ON') return false;
-      if (filter === 'alerts' && !(unit.alerts?.length > 0)) return false;
+      if (filter === 'off' && unit.powerState !== 'OFF') return false;
       if (!q) return true;
       const hay = [
         unit.name,
@@ -87,8 +87,8 @@ export default function UnitsScreen() {
                   ['all', 'All'],
                   ['online', 'Online'],
                   ['offline', 'Offline'],
-                  ['on', 'Running'],
-                  ['alerts', 'Alerts'],
+                  ['on', 'On'],
+                  ['off', 'Off'],
                 ] as const
               ).map(([id, label]) => (
                 <Chip

@@ -2,10 +2,13 @@ import { apiBaseUrl } from './config';
 import type {
   AcUnit,
   AuthUser,
+  EnergyPeriod,
+  EnergyReport,
   LoginResponse,
   OverviewData,
   Summary,
   TelemetryHistoryResponse,
+  WorkspaceSettings,
 } from './types';
 
 export class ApiError extends Error {
@@ -110,17 +113,36 @@ export async function fetchUnit(token: string, id: string): Promise<AcUnit> {
 export async function fetchTelemetryHistory(
   token: string,
   unitId: string,
-  params?: { page?: number; pageSize?: number; powerState?: string },
+  params?: {
+    page?: number;
+    pageSize?: number;
+    powerState?: string;
+    from?: string;
+    to?: string;
+  },
 ): Promise<TelemetryHistoryResponse> {
   const search = new URLSearchParams({
     page: String(params?.page ?? 1),
     pageSize: String(params?.pageSize ?? 10),
   });
   if (params?.powerState) search.set('powerState', params.powerState);
+  if (params?.from) search.set('from', params.from);
+  if (params?.to) search.set('to', params.to);
   return apiRequest<TelemetryHistoryResponse>(
     `/ac-units/${unitId}/telemetry?${search}`,
     token,
   );
+}
+
+export async function fetchSettings(token: string): Promise<WorkspaceSettings> {
+  return apiRequest<WorkspaceSettings>('/settings', token);
+}
+
+export async function fetchEnergyReport(
+  token: string,
+  period: EnergyPeriod,
+): Promise<EnergyReport> {
+  return apiRequest<EnergyReport>(`/dashboard/energy-report?period=${period}`, token);
 }
 
 export async function issueCommand(
